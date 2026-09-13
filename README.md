@@ -44,6 +44,31 @@ Akses di browser:
 
 ---
 
+## 🏠 Akses Remote dari Rumah (Tailscale)
+
+PC kantor (`itsupport-office`) IP Tailscale: `100.96.147.47`.
+
+### 1. Setup sekali di PC kantor (Run as Administrator)
+Klik kanan → **Run as administrator**:
+```
+tools\setup-office-pc-admin.bat
+```
+Ini membuat SMB share `router-panel` + membuka firewall port `20110`.
+
+Autostart sudah terpasang (`Startup\WFLabs-Panel-Autostart.bat`), panel jalan otomatis tiap login Windows via `start-panel.bat --autostart`.
+
+### 2. Dari laptop/HP di rumah (Tailscale ON, akun yang sama)
+* **Web panel:** `http://100.96.147.47:20110`
+* **Member:** `http://100.96.147.47:20110/member`
+* **Folder di Explorer / IDE lain:** `\\100.96.147.47\router-panel`
+  * Fallback (admin share): `\\100.96.147.47\e$\router-panel`
+  * Login: `desktop-3rd4d5b\it support` + password Windows PC kantor.
+  * Di VS Code / Cursor / editor lain: Open Folder langsung ke UNC path di atas, edit realtime tanpa push/pull.
+
+Syarat: PC kantor tetap nyala (Sleep: Never), Tailscale ON di kedua sisi.
+
+---
+
 ## 🛠️ Mode Development
 
 ### Backend Auto-Reload
