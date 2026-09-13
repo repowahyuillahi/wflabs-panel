@@ -1,0 +1,22 @@
+{
+  "name": "router-panel",
+  "version": "1.0.0",
+  "description": "Admin Panel for 9Router - Multi-Instance Manager, SQLite Account & Error Handler",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "build:admin": "npm run build --prefix admin-panel",
+    "build": "npm run build:admin",
+    "dev:admin": "npm run dev --prefix admin-panel",
+    "test": "node test/self-check.js"
+  },
+  "keywords": [
+    "9router",
+    "admin-panel",
+    "sqlite",
+    "ai-gateway"
+  ],
+  "author": "",
+  "license": "MIT"
+}

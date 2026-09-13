@@ -1,0 +1,3710 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>9ROUTER // LIVE MONITORING & CONTROL CONSOLE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #faf7ef;
+      --sidebar: #ffffff;
+      --card: #ffffff;
+      --card-alt: #f3eee1;
+      --border: #e4dcc8;
+      --border-bright: #d3c9ae;
+      --text: #1c1a15;
+      --text-muted: #6b6557;
+      --text-dim: #a09a87;
+      --accent-green: #0a7d3b;
+      --accent-green-bg: rgba(10, 125, 59, 0.09);
+      --accent-cyan: #0b6e99;
+      --accent-cyan-bg: rgba(11, 110, 153, 0.09);
+      --accent-amber: #b45309;
+      --accent-amber-bg: rgba(180, 83, 9, 0.1);
+      --accent-red: #cf222e;
+      --accent-red-bg: rgba(207, 34, 46, 0.08);
+      --font-mono: 'JetBrains Mono', Consolas, Monaco, monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.5;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: #ffffff; }
+    ::-webkit-scrollbar-thumb { background: #c9bfa4; }
+
+    /* SIDEBAR */
+    aside {
+      width: 250px;
+      min-width: 250px;
+      background: var(--sidebar);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      user-select: none;
+    }
+
+    .brand-row {
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand-icon {
+      width: 28px;
+      height: 28px;
+      background: #ffffff;
+      border: 1px solid var(--accent-green);
+      color: var(--accent-green);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 14px;
+      box-shadow: 0 2px 6px rgba(10,125,59,.25);
+    }
+    .brand-title {
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+    }
+    .brand-title span { color: var(--accent-green); }
+
+    .instance-indicator {
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+      background: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+    }
+    .pulse-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent-green);
+      box-shadow: 0 0 8px var(--accent-green);
+      margin-right: 6px;
+    }
+
+    .nav-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-left: 2px solid transparent;
+      transition: all 0.1s;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .nav-item:hover {
+      background: var(--card);
+      color: var(--text);
+    }
+    .nav-item.active {
+      background: var(--card);
+      color: var(--accent-green);
+      border-left-color: var(--accent-green);
+      font-weight: 700;
+    }
+    .nav-tag {
+      font-size: 10px;
+      padding: 1px 6px;
+      background: #e6ddc4;
+      color: var(--text-dim);
+    }
+    .nav-ico {
+      width: 15px;
+      height: 15px;
+      min-width: 15px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      opacity: .85;
+    }
+    .nav-item > span:first-child {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+    }
+    .pager {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      background: #f5f0e2;
+      border: 1px solid var(--border);
+      border-top: none;
+      padding: 8px 14px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .pager-controls { display: flex; align-items: center; gap: 6px; }
+    .pager-info { font-size: 11px; }
+    .pager select { padding: 3px 6px; font-size: 11px; }
+
+    .sidebar-foot {
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    /* MAIN */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      background: var(--bg);
+      overflow: hidden;
+    }
+
+    header {
+      height: 52px;
+      min-height: 52px;
+      border-bottom: 1px solid var(--border);
+      background: var(--sidebar);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+    }
+    .head-title {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .head-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .view-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 22px;
+    }
+
+    /* STATS */
+    .stat-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .stat-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      padding: 16px;
+      position: relative;
+    }
+    .stat-box::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; width: 2px; height: 100%;
+      background: var(--border-bright);
+    }
+    .stat-box.green::before { background: var(--accent-green); }
+    .stat-box.cyan::before { background: var(--accent-cyan); }
+    .stat-box.red::before { background: var(--accent-red); }
+
+    .stat-lbl { font-size: 10px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 4px; }
+    .stat-val { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+    .stat-sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+
+    /* PANELS */
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      margin-bottom: 20px;
+    }
+    .panel-head {
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #f5f0e2;
+    }
+    .panel-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+    }
+    .panel-body { padding: 18px; }
+
+    /* EQUALIZER BARS (9ROUTER STYLE) */
+    .bars-frame {
+      display: flex;
+      align-items: flex-end;
+      gap: 3px;
+      height: 75px;
+      padding: 10px;
+      background: #ffffff;
+      border: 1px solid var(--border);
+      margin-bottom: 14px;
+      overflow: hidden;
+    }
+    .bar {
+      flex: 1;
+      min-width: 6px;
+      background: #e6ddc4;
+      height: 10%;
+      transition: height 0.4s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s;
+    }
+    .bar.green {
+      background: linear-gradient(180deg, var(--accent-green), rgba(10,125,59,.18));
+      box-shadow: 0 0 10px rgba(10,125,59,.22);
+    }
+    .bar.cyan {
+      background: linear-gradient(180deg, var(--accent-cyan), rgba(11,110,153,.18));
+      box-shadow: 0 0 10px rgba(11,110,153,.22);
+    }
+    .bar.err {
+      background: linear-gradient(180deg, var(--accent-red), rgba(207,34,46,.14));
+      box-shadow: 0 0 10px rgba(207,34,46,.22);
+    }
+
+    /* 9ROUTER USAGE CLEAN LAYOUT STYLING */
+    .usage-header-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .sub-tabs-group {
+      display: flex;
+      background: #f0e9d6;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 3px;
+      gap: 2px;
+    }
+    .sub-tab-btn {
+      background: transparent;
+      border: none;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-dim);
+      padding: 6px 14px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .sub-tab-btn:hover { color: var(--text); background: rgba(255,255,255,0.4); }
+    .sub-tab-btn.active {
+      background: #ffffff;
+      color: var(--text);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .kpi-row-5 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .kpi-card {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+      box-shadow: 0 2px 6px rgba(40, 35, 20, 0.03);
+    }
+    .kpi-card-lbl {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+    .kpi-card-val {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: var(--text);
+    }
+    .kpi-card-sub {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+    .live-status-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #eef8f2;
+      border: 1px solid #bce6cb;
+      color: #0a7d3b;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+
+    /* REACT FLOW INSPIRED FLOW ENGINE (REACTFLOWPROVIDER CANVAS) */
+    .react-flow-root {
+      position: relative;
+      height: 440px;
+      width: 100%;
+      background-color: #faf7ef;
+      background-image: radial-gradient(circle, #cfc5aa 1.25px, transparent 1.25px);
+      background-size: 20px 20px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      user-select: none;
+    }
+    .react-flow__viewport {
+      position: absolute;
+      inset: 0;
+      transform-origin: 0 0;
+      transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1);
+    }
+    .react-flow__edges-layer {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+      pointer-events: none;
+    }
+    .rf-edge-base {
+      fill: none;
+      stroke: #dcd3bd;
+      stroke-width: 2px;
+      stroke-linecap: round;
+    }
+    .rf-edge-flow {
+      fill: none;
+      stroke-width: 2.5px;
+      stroke-linecap: round;
+      stroke-dasharray: 6 6;
+      animation: rfDashFlow 0.85s linear infinite;
+      opacity: 0.95;
+    }
+    .rf-edge-flow.green {
+      stroke: var(--accent-green);
+      filter: drop-shadow(0 0 4px rgba(10, 125, 59, 0.45));
+    }
+    .rf-edge-flow.cyan {
+      stroke: var(--accent-cyan);
+      filter: drop-shadow(0 0 4px rgba(11, 110, 153, 0.45));
+    }
+    .rf-edge-flow.idle {
+      stroke: #d5ccb6;
+      opacity: 0.35;
+      animation-play-state: paused;
+      filter: none;
+    }
+    .rf-edge-flow.err {
+      stroke: var(--accent-red);
+      filter: drop-shadow(0 0 5px rgba(207, 34, 46, 0.5));
+    }
+    @keyframes rfDashFlow {
+      to { stroke-dashoffset: -24; }
+    }
+    .rf-packet {
+      filter: drop-shadow(0 0 6px currentColor);
+    }
+
+    /* Edge Labels */
+    .rf-edge-labels-layer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+    .rf-edge-label {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      background: #ffffff;
+      border: 1px solid var(--border-bright);
+      padding: 2px 7px;
+      font-size: 10px;
+      font-weight: 700;
+      border-radius: 9999px;
+      box-shadow: 0 2px 6px rgba(40, 35, 20, 0.08);
+      white-space: nowrap;
+      pointer-events: auto;
+      transition: all 0.2s;
+    }
+    .rf-edge-label.active {
+      border-color: var(--accent-green);
+      color: var(--accent-green);
+      box-shadow: 0 0 10px rgba(10, 125, 59, 0.25);
+    }
+
+    /* React Flow Nodes Layer */
+    .react-flow__nodes-layer {
+      position: absolute;
+      inset: 0;
+    }
+    .rf-node {
+      position: absolute;
+      background: #ffffff;
+      border: 1.5px solid #ddd4bd;
+      border-radius: 10px;
+      padding: 10px 14px;
+      box-shadow: 0 4px 12px rgba(40, 35, 20, 0.06);
+      cursor: grab;
+      transition: box-shadow 0.15s, border-color 0.15s;
+      z-index: 2;
+    }
+    .rf-node:hover {
+      border-color: #baa989;
+      box-shadow: 0 6px 18px rgba(40, 35, 20, 0.1);
+    }
+    .rf-node.dragging {
+      cursor: grabbing !important;
+      z-index: 10;
+      box-shadow: 0 12px 28px rgba(40, 35, 20, 0.18) !important;
+      border-color: var(--accent-green) !important;
+    }
+    .rf-node.node-hot {
+      border-color: var(--accent-green);
+      box-shadow: 0 0 0 3px rgba(10, 125, 59, 0.2), 0 8px 20px rgba(10, 125, 59, 0.12);
+    }
+
+    /* Handles */
+    .rf-handle {
+      position: absolute;
+      top: 50%;
+      width: 10px;
+      height: 10px;
+      margin-top: -5px;
+      background: #ffffff;
+      border: 2.5px solid #94a3b8;
+      border-radius: 50%;
+      z-index: 3;
+      transition: transform 0.15s, border-color 0.15s;
+    }
+    .rf-handle:hover {
+      transform: scale(1.3);
+    }
+    .rf-handle-left {
+      left: -6px;
+      border-color: var(--accent-cyan);
+    }
+    .rf-handle-right {
+      right: -6px;
+      border-color: var(--accent-green);
+    }
+
+    /* Node internal cards */
+    .rf-node-pool {
+      width: 220px;
+    }
+    .rf-node-gateway {
+      width: 250px;
+      border: 2px solid var(--accent-green);
+      background: #ffffff;
+      box-shadow: 0 6px 20px rgba(10, 125, 59, 0.12), inset 0 0 16px rgba(10, 125, 59, 0.03);
+    }
+    .rf-node-api {
+      width: 220px;
+    }
+    .rf-node-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+    .rf-node-title {
+      font-weight: 800;
+      font-size: 12px;
+      letter-spacing: -0.3px;
+    }
+    .rf-node-meta {
+      font-size: 10px;
+      color: var(--text-dim);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    /* React Flow Controls Widget */
+    .react-flow__controls {
+      position: absolute;
+      left: 14px;
+      bottom: 14px;
+      display: flex;
+      flex-direction: column;
+      background: #ffffff;
+      border: 1px solid var(--border-bright);
+      border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(40, 35, 20, 0.09);
+      overflow: hidden;
+      z-index: 5;
+    }
+    .rf-ctrl-btn {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #ffffff;
+      border: none;
+      border-bottom: 1px solid #f0e9d6;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 0;
+      border-radius: 0;
+      transition: all 0.1s;
+    }
+    .rf-ctrl-btn:last-child { border-bottom: none; }
+    .rf-ctrl-btn:hover { background: #fbf8ee; color: var(--text); }
+
+    /* React Flow MiniMap */
+    .react-flow__minimap {
+      position: absolute;
+      right: 14px;
+      bottom: 14px;
+      width: 150px;
+      height: 85px;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(4px);
+      border: 1px solid var(--border-bright);
+      border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(40, 35, 20, 0.08);
+      z-index: 5;
+      overflow: hidden;
+    }
+    .rf-minimap-header {
+      font-size: 8px;
+      color: var(--text-dim);
+      padding: 3px 6px;
+      letter-spacing: 0.5px;
+      font-weight: 800;
+      border-bottom: 1px solid #f0e9d6;
+    }
+    .rf-minimap-svg {
+      width: 100%;
+      height: calc(100% - 16px);
+    }
+    .rf-minimap-node {
+      fill: #dcd3bd;
+      rx: 2;
+    }
+    .rf-minimap-node.pool { fill: var(--accent-green); }
+    .rf-minimap-node.gw { fill: #f59e0b; }
+    .rf-minimap-node.api { fill: var(--accent-cyan); }
+
+    .gw-active-list { margin-top: 6px; text-align: left; font-size: 10px; display: flex; flex-direction: column; gap: 3px; max-height: 85px; overflow-y: auto; }
+    .gw-active-item { background: rgba(10,125,59,.08); border: 1px solid rgba(10,125,59,.35); padding: 2px 6px; color: var(--accent-green); font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    @keyframes livePing {
+      0% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.6); opacity: 0.3; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .radar { animation: livePing 1.6s infinite ease-in-out; }
+
+    @keyframes feedSlide {
+      from { opacity: 0; transform: translateY(-6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .feed-row {
+      animation: feedSlide 0.25s ease-out;
+      border-left: 2px solid var(--accent-green);
+      background: #ffffff;
+      padding: 8px 12px;
+      margin-bottom: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      border-top: 1px solid #e5dcc4;
+      border-right: 1px solid #e5dcc4;
+      border-bottom: 1px solid #e5dcc4;
+    }
+    .feed-row.err { border-left-color: var(--accent-red); }
+
+    /* BUTTONS */
+    button, .btn {
+      background: #ffffff;
+      border: 1px solid var(--border-bright);
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      padding: 6px 14px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      text-decoration: none;
+      transition: all 0.1s;
+    }
+    button:hover, .btn:hover { background: #efe8d3; border-color: #c9bfa2; }
+    .btn-green { background: var(--accent-green-bg); border-color: var(--accent-green); color: var(--accent-green); }
+    .btn-green:hover { background: var(--accent-green); color: #fff; }
+    .btn-red { background: var(--accent-red-bg); border-color: var(--accent-red); color: var(--accent-red); }
+    .btn-red:hover { background: var(--accent-red); color: #fff; }
+    .btn-sm { padding: 3px 8px; font-size: 11px; }
+
+    .tag {
+      font-size: 10px;
+      padding: 2px 6px;
+      font-weight: 700;
+      border: 1px solid transparent;
+      display: inline-flex;
+    }
+    .tag-green { background: var(--accent-green-bg); color: var(--accent-green); border-color: rgba(10,125,59,.35); }
+    .tag-cyan { background: var(--accent-cyan-bg); color: var(--accent-cyan); border-color: rgba(11,110,153,.35); }
+    .tag-amber { background: var(--accent-amber-bg); color: var(--accent-amber); border-color: rgba(180,83,9,.35); }
+    .tag-red { background: var(--accent-red-bg); color: var(--accent-red); border-color: rgba(207,34,46,.3); }
+
+    .table-box { border: 1px solid var(--border); background: #ffffff; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; white-space: nowrap; }
+    th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #e6ddc4; }
+    th { background: #f5f0e2; color: var(--text-dim); font-size: 10px; text-transform: uppercase; }
+    tr:hover td { background: #fbf8ee; }
+
+    .filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      background: #f5f0e2;
+      border: 1px solid var(--border);
+      padding: 10px 14px;
+      margin-bottom: 14px;
+    }
+    select, input[type="text"], input[type="number"], textarea {
+      background: #ffffff;
+      border: 1px solid var(--border-bright);
+      color: var(--text);
+      padding: 5px 10px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      outline: none;
+    }
+    select:focus, input:focus, textarea:focus { border-color: var(--accent-green); }
+
+    .progress-bar { background: #e6ddc4; height: 6px; width: 100%; }
+    .progress-fill { height: 100%; background: var(--accent-green); }
+
+    /* USAGE PERIOD TABS + CHART (MIRIP 9ROUTER USAGE PAGE) */
+    .period-tabs { display: flex; gap: 4px; background: #ffffff; border: 1px solid var(--border); padding: 3px; }
+    .period-tab {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-dim);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 12px;
+    }
+    .period-tab:hover { color: var(--text); background: #ece4cf; }
+    .period-tab.active {
+      background: var(--accent-green-bg);
+      border-color: var(--accent-green);
+      color: var(--accent-green);
+    }
+    .usage-chart {
+      display: flex;
+      align-items: flex-end;
+      gap: 4px;
+      height: 130px;
+      padding: 12px 10px 4px 10px;
+      background: #ffffff;
+      border: 1px solid var(--border);
+      overflow-x: auto;
+    }
+    .usage-col { flex: 1; min-width: 14px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; height: 100%; }
+    .usage-bar {
+      width: 100%;
+      min-height: 2px;
+      background: linear-gradient(180deg, var(--accent-green), rgba(10,125,59,.15));
+      transition: height .5s ease;
+    }
+    .usage-bar.cost { background: linear-gradient(180deg, var(--accent-cyan), rgba(11,110,153,.12)); min-height: 1px; opacity: .55; }
+    .usage-lbl { font-size: 9px; color: var(--text-dim); white-space: nowrap; }
+
+    /* MODAL */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(80, 70, 50, 0.4);
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal-window {
+      background: #f5f0e2;
+      border: 1px solid var(--border-bright);
+      width: 90%;
+      max-width: 600px;
+      padding: 20px;
+      max-height: 85vh;
+      overflow-y: auto;
+    }
+    .modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 10px;
+    }
+    .input-lbl {
+      display: block;
+      font-size: 10px;
+      color: var(--text-dim);
+      font-weight: 700;
+      text-transform: uppercase;
+      margin: 8px 0 4px 0;
+    }
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 18px;
+      border-top: 1px solid var(--border);
+      padding-top: 12px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- SIDEBAR -->
+  <aside>
+    <div class="brand-row">
+      <div class="brand-icon">9</div>
+      <div>
+        <div class="brand-title">9ROUTER <span>// LIVE</span></div>
+        <div style="font-size: 10px; color: var(--text-dim);">DEDICATED MONITOR</div>
+      </div>
+    </div>
+
+    <div class="instance-indicator">
+      <span>GATEWAY :20128</span>
+      <span><span id="statLiveDot" class="pulse-dot radar"></span><strong id="statLiveLatency" style="color: var(--accent-green);">ONLINE</strong></span>
+    </div>
+
+    <div class="nav-list">
+      <div class="nav-item active" onclick="switchNav('dashboard')">
+        <span><svg class="nav-ico" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>// USAGE &amp; ANALYTICS</span>
+      </div>
+      <div class="nav-item" onclick="switchNav('accounts')">
+        <span><svg class="nav-ico" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 4l3 3M14 7l3 3"/></svg>// ACCOUNTS</span>
+        <span class="nav-tag" id="sbAccCount">731</span>
+      </div>
+      <div class="nav-item" onclick="switchNav('providers')">
+        <span><svg class="nav-ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="7" rx="1"/><rect x="3" y="13" width="18" height="7" rx="1"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>// PROVIDERS</span>
+        <span class="nav-tag" id="sbProvCount">-</span>
+      </div>
+      <div class="nav-item" onclick="switchNav('proxies')">
+        <span><svg class="nav-ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14 0 18M12 3c-3 3.5-3 14 0 18"/></svg>// PROXY POOLS</span>
+        <span class="nav-tag" id="sbProxyCount">-</span>
+      </div>
+      <div class="nav-item" onclick="switchNav('models')">
+        <span><svg class="nav-ico" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9zM4 10h-2M4 14h-2M22 10h-2M22 14h-2M10 4V2M14 4V2M10 22v-2M14 22v-2"/></svg>// ALLOWED MODELS</span>
+        <span class="nav-tag" id="sbModCount">1.3k</span>
+      </div>
+      <div class="nav-item" onclick="switchNav('custom')">
+        <span><svg class="nav-ico" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></svg>// CUSTOM MODELS</span>
+        <span class="nav-tag">91</span>
+      </div>
+      <div class="nav-item" onclick="switchNav('members')">
+        <span><svg class="nav-ico" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M16 4.5a3.5 3.5 0 0 1 0 7M21 20c0-2.8-1.9-5.1-4.5-5.8"/></svg>// MEMBERS & KEYS</span>
+        <span class="nav-tag" id="sbKeyCount">12</span>
+      </div>
+      <div class="nav-item" onclick="switchNav('quotas')">
+        <span><svg class="nav-ico" viewBox="0 0 24 24"><path d="M12 13l4-4M5 19a9 9 0 1 1 14 0"/></svg>// QUOTA LIMITS</span>
+      </div>
+      <div class="nav-item" onclick="switchNav('pricing')">
+        <span><svg class="nav-ico" viewBox="0 0 24 24"><path d="M3 3h8l10 10-8 8L3 11z"/><circle cx="8" cy="8" r="1.5"/></svg>// PRICING MATRIX</span>
+      </div>
+      <div class="nav-item" onclick="switchNav('errors')">
+        <span><svg class="nav-ico" viewBox="0 0 24 24"><path d="M12 3l10 17H2z"/><path d="M12 10v4M12 17.5h.01"/></svg>// ERROR STREAM</span>
+        <span class="nav-tag" id="sbErrCount" style="color: var(--accent-red);">-</span>
+      </div>
+      <div class="nav-item" onclick="switchNav('settings')">
+        <span><svg class="nav-ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a7 7 0 0 0-2-1.2L14.2 3H9.8l-.4 2.7a7 7 0 0 0-2 1.2l-2.3-1-2 3.4 2 1.5A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 2 1.2l.4 2.7h4.4l.4-2.7a7 7 0 0 0 2-1.2l2.3 1 2-3.4-2-1.5c.1-.4.1-.8.1-1.2z"/></svg>// SYSTEM & BACKUP</span>
+      </div>
+      <div class="nav-item" onclick="window.open('/member', '_blank')">
+        <span style="color: var(--accent-cyan);"><svg class="nav-ico" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/></svg>↗ MEMBER PORTAL</span>
+      </div>
+    </div>
+
+    <div class="sidebar-foot">
+      <div>PID: <span id="sbPid" style="color: var(--text);">-</span></div>
+      <div>DB: <span id="sbDbSize">-</span></div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main>
+    <header>
+      <div class="head-title">
+        <span style="color: var(--text-dim);">></span>
+        <span id="pageTitle">LIVE USAGE SPECTRUM</span>
+        <span class="tag tag-green">LIVE MONITORING</span>
+      </div>
+      <div class="head-actions">
+        <button onclick="healAllKiro()" class="btn-green btn-sm">⚡ HEAL ALL KIRO</button>
+        <button onclick="backupCurrentDb()" class="btn-sm">💾 BACKUP SQLITE</button>
+      </div>
+    </header>
+
+    <div class="view-area">
+
+      <!-- VIEW 1: DASHBOARD (9ROUTER OFFICIAL USAGE & ANALYTICS LAYOUT) -->
+      <section id="view-dashboard">
+        <!-- TOP CONTROLS & SUB-TABS -->
+        <div class="usage-header-row">
+          <div>
+            <h2 style="font-size: 16px; font-weight: 800; letter-spacing: -0.3px;">Usage &amp; Analytics</h2>
+            <div style="font-size: 11px; color: var(--text-muted);">Monitor your API usage, token consumption, and request logs</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <!-- Sub-Tabs: Overview vs Request Logs -->
+            <div class="sub-tabs-group">
+              <button class="sub-tab-btn active" id="btnSubTabOverview" onclick="switchUsageSubTab('overview')">Overview</button>
+              <button class="sub-tab-btn" id="btnSubTabLogs" onclick="switchUsageSubTab('logs')">Request Logs</button>
+            </div>
+            <!-- Period Selector -->
+            <div class="period-tabs" id="usagePeriodTabs">
+              <button class="period-tab" data-period="today" onclick="setUsagePeriod('today')">Today</button>
+              <button class="period-tab active" data-period="24h" onclick="setUsagePeriod('24h')">24h</button>
+              <button class="period-tab" data-period="7d" onclick="setUsagePeriod('7d')">7D</button>
+              <button class="period-tab" data-period="30d" onclick="setUsagePeriod('30d')">30D</button>
+              <button class="period-tab" data-period="60d" onclick="setUsagePeriod('60d')">60D</button>
+            </div>
+            <!-- Optional Flow Graph Toggle -->
+            <button class="btn-sm" id="btnToggleFlow" onclick="toggleFlowGraph()" title="Show/Hide Flow Diagram">☊ Flow Graph</button>
+          </div>
+        </div>
+
+        <!-- IN-FLIGHT ACTIVE REQUESTS BANNER (CLEAN & SUBTLE) -->
+        <div id="rfActiveBanner" class="live-status-pill" style="display: none;">
+          <span class="pulse-dot radar"></span>
+          <span id="rfActiveBannerText">Active requests running</span>
+        </div>
+
+        <!-- COLLAPSIBLE REACTFLOW TOPOLOGY (CLEAN & ACCORDION) -->
+        <div class="panel" id="rfFlowPanel" style="display: none; margin-bottom: 18px;">
+          <div class="panel-head">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="pulse-dot radar"></span>
+              <span class="panel-title">INTERACTIVE REACTFLOW GRAPH // POOLS → GATEWAY → API</span>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <span class="tag tag-green" id="topoPoolBadge">POOL: -</span>
+              <span class="tag tag-cyan" id="topoApiBadge">API: -</span>
+              <button class="btn-sm" onclick="toggleFlowGraph()">&times; Close</button>
+            </div>
+          </div>
+          <div class="panel-body" style="padding: 0;">
+            <div class="react-flow-root" id="rfContainer">
+              <div class="react-flow__viewport" id="rfViewport">
+                <svg class="react-flow__edges-layer" id="rfEdgesSvg"></svg>
+                <div class="rf-edge-labels-layer" id="rfEdgeLabels"></div>
+                <div class="react-flow__nodes-layer" id="rfNodesLayer"></div>
+              </div>
+              <div class="react-flow__controls">
+                <button class="rf-ctrl-btn" onclick="rfZoom(1.2)" title="Zoom In">+</button>
+                <button class="rf-ctrl-btn" onclick="rfZoom(0.8)" title="Zoom Out">−</button>
+                <button class="rf-ctrl-btn" onclick="rfFitView()" title="Fit View">⛶</button>
+                <button class="rf-ctrl-btn" id="rfLockBtn" onclick="rfToggleLock()" title="Lock / Unlock Dragging">🔓</button>
+                <button class="rf-ctrl-btn" onclick="rfResetLayout()" title="Reset Node Layout">↺</button>
+              </div>
+              <div class="react-flow__minimap">
+                <div class="rf-minimap-header">MINIMAP</div>
+                <svg class="rf-minimap-svg" id="rfMiniMapSvg" viewBox="0 0 1000 440" preserveAspectRatio="none"></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SUB-TAB CONTENT 1: OVERVIEW -->
+        <div id="usageSubTabOverview">
+          <!-- 5 SIGNATURE 9ROUTER KPI SUMMARY CARDS -->
+          <div class="kpi-row-5">
+            <div class="kpi-card">
+              <div class="kpi-card-lbl">Total Requests</div>
+              <div class="kpi-card-val" id="usageReqTotal">-</div>
+              <div class="kpi-card-sub" id="usageReqSub">requests completed</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-card-lbl">Total Input Tokens</div>
+              <div class="kpi-card-val" id="usagePromptTokens">-</div>
+              <div class="kpi-card-sub">prompt tokens</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-card-lbl">Cached Tokens</div>
+              <div class="kpi-card-val" style="color: var(--accent-cyan);" id="usageCachedTokens">-</div>
+              <div class="kpi-card-sub">cache read hit</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-card-lbl">Output Tokens</div>
+              <div class="kpi-card-val" id="usageCompletionTokens">-</div>
+              <div class="kpi-card-sub">completion tokens</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-card-lbl">Est. Cost</div>
+              <div class="kpi-card-val" style="color: var(--accent-green);" id="usageCostTotal">$0.00</div>
+              <div class="kpi-card-sub">USD total spend</div>
+            </div>
+          </div>
+
+          <!-- USAGE OVER TIME CHART CARD -->
+          <div class="panel">
+            <div class="panel-head">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="panel-title">Usage &amp; Token Chart</span>
+                <span class="tag" id="usageChartPeriodBadge">24H</span>
+              </div>
+              <div style="display: flex; gap: 4px;">
+                <button class="btn-sm btn-green" id="btnChartModeTokens" onclick="setChartMode('tokens')">Tokens</button>
+                <button class="btn-sm" id="btnChartModeCost" onclick="setChartMode('cost')">Cost</button>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="usage-chart" id="usageChartBars"></div>
+              <div style="font-size: 10px; color: var(--text-dim); margin-top: 6px; text-align: right;">Data source: 9Router Live (:20128)</div>
+            </div>
+          </div>
+
+          <!-- BREAKDOWN CARDS (USAGE BY MODEL & USAGE BY ACCOUNT) -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 18px;">
+            <div class="panel" style="margin-bottom: 0;">
+              <div class="panel-head">
+                <span class="panel-title">Usage by Model</span>
+                <span class="tag tag-cyan" id="countTopModels">0 models</span>
+              </div>
+              <div class="table-box">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Model</th>
+                      <th>Req</th>
+                      <th>Tokens</th>
+                      <th>Cost</th>
+                    </tr>
+                  </thead>
+                  <tbody id="usageTopModels">
+                    <tr><td colspan="4" style="text-align: center; color: var(--text-dim);">Loading...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="panel" style="margin-bottom: 0;">
+              <div class="panel-head">
+                <span class="panel-title">Usage by Account</span>
+                <span class="tag tag-cyan" id="countTopAccounts">0 accounts</span>
+              </div>
+              <div class="table-box">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Account</th>
+                      <th>Req</th>
+                      <th>Tokens</th>
+                      <th>Cost</th>
+                    </tr>
+                  </thead>
+                  <tbody id="usageTopAccounts">
+                    <tr><td colspan="4" style="text-align: center; color: var(--text-dim);">Loading...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SUB-TAB CONTENT 2: REQUEST LOGS (DETAILS) -->
+        <div id="usageSubTabLogs" style="display: none;">
+          <div class="filter-bar">
+            <div style="display: flex; gap: 8px;">
+              <select id="filterLogStatus" onchange="loadRequestLogs()">
+                <option value="all">ALL STATUS</option>
+                <option value="ok">SUCCESS (OK)</option>
+                <option value="error">ERRORS ONLY</option>
+              </select>
+              <input type="text" id="searchLogInput" placeholder="Filter model, provider, key..." oninput="debounce(loadRequestLogs, 250)()" />
+            </div>
+            <button onclick="loadRequestLogs()" class="btn-sm">REFRESH LOGS</button>
+          </div>
+
+          <div class="table-box">
+            <table>
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Provider</th>
+                  <th>Model</th>
+                  <th>Prompt</th>
+                  <th>Cached</th>
+                  <th>Output</th>
+                  <th>Cost</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="requestLogsTableBody">
+                <tr><td colspan="8" style="text-align: center; color: var(--text-dim);">Loading request logs...</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="pager" id="pager-requestLogs"></div>
+        </div>
+      </section>
+
+      <!-- VIEW 2: PROVIDER ACCOUNTS -->
+      <section id="view-accounts" style="display: none;">
+        <div class="filter-bar">
+          <div style="display: flex; gap: 8px;">
+            <select id="filterProvider" onchange="loadAccounts()">
+              <option value="all">ALL PROVIDERS</option>
+              <option value="kiro" selected>kiro</option>
+              <option value="antigravity">antigravity</option>
+              <option value="fireworks">fireworks</option>
+            </select>
+            <select id="filterStatus" onchange="loadAccounts()">
+              <option value="all">ALL STATUS</option>
+              <option value="active">ACTIVE</option>
+              <option value="inactive">DISABLED</option>
+              <option value="error">ERROR / 429</option>
+            </select>
+            <input type="text" id="searchAccInput" placeholder="Search account..." oninput="debounce(loadAccounts, 250)()" />
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button onclick="openImportModal()" class="btn-sm">IMPORT JSON</button>
+            <button onclick="exportKiro()" class="btn-sm">EXPORT KIRO</button>
+            <button onclick="openNewAccountModal()" class="btn-green btn-sm">+ NEW ACCOUNT</button>
+          </div>
+        </div>
+
+        <div id="bulkBar" style="display: none; background: var(--card-alt); border: 1px solid var(--border-bright); padding: 8px 14px; margin-bottom: 12px; align-items: center; justify-content: space-between;">
+          <span id="bulkCount" style="color: var(--accent-cyan); font-size: 11px;">0 selected</span>
+          <div style="display: flex; gap: 6px;">
+            <button onclick="bulkAction('activate')" class="btn-sm btn-green">ACTIVATE</button>
+            <button onclick="bulkAction('deactivate')" class="btn-sm btn-red">DEACTIVATE</button>
+            <button onclick="bulkAction('reset-error')" class="btn-sm">RESET ERROR</button>
+            <button onclick="bulkAction('delete')" class="btn-sm btn-red">DELETE</button>
+          </div>
+        </div>
+
+        <div class="table-box">
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 28px;"><input type="checkbox" id="selectAllAcc" onchange="toggleSelectAll(this.checked)" /></th>
+                <th style="width: 45px;">PRIO</th>
+                <th style="width: 90px;">PROVIDER</th>
+                <th>IDENTIFIER / EMAIL</th>
+                <th style="width: 80px;">STATE</th>
+                <th style="width: 130px;">HEALTH</th>
+                <th style="width: 130px;">UPDATED</th>
+                <th style="width: 140px;">ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody id="accountsTableBody">
+              <tr><td colspan="8" style="text-align: center; color: var(--text-dim);">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="pager" id="pager-accounts"></div>
+      </section>
+
+      <!-- VIEW 3: ALLOWED MODELS -->
+      <section id="view-models" style="display: none;">
+        <div class="filter-bar">
+          <div style="display: flex; gap: 8px;">
+            <select id="filterModelProv" onchange="renderAllowedModels()">
+              <option value="all">ALL PROVIDERS</option>
+            </select>
+            <select id="filterModelAllow" onchange="renderAllowedModels()">
+              <option value="all">ALL STATES</option>
+              <option value="allowed" selected>ALLOWED ONLY</option>
+              <option value="disabled">DISABLED ONLY</option>
+            </select>
+            <input type="text" id="searchModelInput" placeholder="Filter model..." oninput="debounce(renderAllowedModels, 250)()" />
+          </div>
+          <button onclick="loadAllowedModels()" class="btn-sm">REFRESH</button>
+        </div>
+
+        <div class="table-box">
+          <table>
+            <thead>
+              <tr>
+                <th>PROVIDER</th>
+                <th>MODEL ID</th>
+                <th>DISPLAY NAME</th>
+                <th>TYPE</th>
+                <th>CONTEXT</th>
+                <th>GATEWAY STATUS</th>
+                <th>ACTION</th>
+              </tr>
+            </thead>
+            <tbody id="modelsTableBody">
+              <tr><td colspan="7" style="text-align: center; color: var(--text-dim);">Loading catalog...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="pager" id="pager-models"></div>
+      </section>
+
+      <!-- VIEW 4: CUSTOM MODELS -->
+      <section id="view-custom" style="display: none;">
+        <div class="filter-bar">
+          <div>
+            <strong>CUSTOM MODEL MAPPINGS</strong>
+            <span class="tag tag-cyan" id="customCountTag">0</span>
+          </div>
+          <button onclick="openNewCustomModelModal()" class="btn-green btn-sm">+ ADD CUSTOM MODEL</button>
+        </div>
+
+        <div class="table-box">
+          <table>
+            <thead>
+              <tr>
+                <th>PROVIDER ALIAS</th>
+                <th>MODEL ID</th>
+                <th>DISPLAY NAME</th>
+                <th>TYPE</th>
+                <th>ACTION</th>
+              </tr>
+            </thead>
+            <tbody id="customTableBody">
+              <tr><td colspan="5" style="text-align: center; color: var(--text-dim);">Loading custom models...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- VIEW 5: MEMBERS & KEYS -->
+      <section id="view-members" style="display: none;">
+        <div class="filter-bar">
+          <div><strong>GATEWAY MEMBERS & API KEYS</strong></div>
+          <button onclick="openNewMemberModal()" class="btn-green btn-sm">+ CREATE MEMBER KEY</button>
+        </div>
+
+        <div class="table-box">
+          <table>
+            <thead>
+              <tr>
+                <th>MEMBER</th>
+                <th>GATEWAY API KEY</th>
+                <th>MACHINE ID</th>
+                <th>STATE</th>
+                <th>REQUESTS</th>
+                <th>TOKENS</th>
+                <th>BILLED (USD)</th>
+                <th>ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody id="membersTableBody">
+              <tr><td colspan="8" style="text-align: center; color: var(--text-dim);">Loading members...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="pager" id="pager-members"></div>
+      </section>
+
+      <!-- VIEW 5b: PROXY POOLS -->
+      <section id="view-proxies" style="display: none;">
+        <div class="filter-bar">
+          <div style="display: flex; gap: 8px;">
+            <select id="filterProxyStatus" onchange="loadProxies()">
+              <option value="all">ALL STATES</option>
+              <option value="active">ACTIVE ONLY</option>
+              <option value="inactive">DISABLED ONLY</option>
+            </select>
+            <input type="text" id="searchProxyInput" placeholder="Search name, host, id..." oninput="debounce(loadProxies, 250)()" />
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button onclick="openNewProxyModal()" class="btn-green btn-sm">+ ADD PROXY</button>
+            <button onclick="loadProxies()" class="btn-sm">REFRESH</button>
+          </div>
+        </div>
+
+        <div class="table-box">
+          <table>
+            <thead>
+              <tr>
+                <th>NAME</th>
+                <th>PROXY ENDPOINT</th>
+                <th style="width: 70px;">TYPE</th>
+                <th style="width: 90px;">STATE</th>
+                <th style="width: 100px;">TEST</th>
+                <th style="width: 130px;">LAST CHECK</th>
+                <th style="width: 150px;">ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody id="proxyTableBody">
+              <tr><td colspan="7" style="text-align: center; color: var(--text-dim);">Loading proxy pools...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="pager" id="pager-proxies"></div>
+      </section>
+
+      <!-- VIEW 5c: PROVIDER NODES -->
+      <section id="view-providers" style="display: none;">
+        <div class="filter-bar">
+          <div><strong>PROVIDER NODES & UPSTREAM ENDPOINTS</strong>
+            <span class="tag tag-cyan" id="provCountTag">-</span>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button onclick="openNewProviderModal()" class="btn-green btn-sm">+ ADD PROVIDER</button>
+            <button onclick="loadProviderNodes()" class="btn-sm">REFRESH</button>
+          </div>
+        </div>
+
+        <div class="table-box">
+          <table>
+            <thead>
+              <tr>
+                <th>NAME</th>
+                <th>NODE ID</th>
+                <th style="width: 130px;">TYPE</th>
+                <th style="width: 80px;">PREFIX</th>
+                <th>BASE URL</th>
+                <th style="width: 110px;">ACCOUNTS</th>
+                <th style="width: 150px;">ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody id="providerTableBody">
+              <tr><td colspan="7" style="text-align: center; color: var(--text-dim);">Loading providers...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="pager" id="pager-providers"></div>
+      </section>
+
+      <!-- VIEW 6: QUOTAS -->
+      <section id="view-quotas" style="display: none;">
+        <div class="filter-bar">
+          <div><strong>TOKEN QUOTAS & CONSUMPTION</strong></div>
+          <button onclick="loadMembers()" class="btn-sm">REFRESH</button>
+        </div>
+
+        <div class="table-box">
+          <table>
+            <thead>
+              <tr>
+                <th>MEMBER</th>
+                <th>PLAN</th>
+                <th>CONSUMPTION / ALLOWANCE</th>
+                <th>SPENDING CAP</th>
+                <th>BALANCE</th>
+                <th>CONFIGURE</th>
+              </tr>
+            </thead>
+            <tbody id="quotasTableBody">
+              <tr><td colspan="6" style="text-align: center; color: var(--text-dim);">Loading quotas...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- VIEW 7: PRICING -->
+      <section id="view-pricing" style="display: none;">
+        <div class="filter-bar">
+          <div><strong>TOKEN BILLING RATES (USD / 1M TOKENS)</strong></div>
+          <button onclick="openNewPricingModal()" class="btn-green btn-sm">+ CUSTOM RATE</button>
+        </div>
+
+        <div class="table-box">
+          <table>
+            <thead>
+              <tr>
+                <th>MODEL KEY</th>
+                <th>PROMPT / 1M</th>
+                <th>COMPLETION / 1M</th>
+                <th>CACHED RATE</th>
+                <th>STATE</th>
+              </tr>
+            </thead>
+            <tbody id="pricingTableBody">
+              <tr><td colspan="5" style="text-align: center; color: var(--text-dim);">Loading pricing...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- VIEW 8: ERRORS -->
+      <section id="view-errors" style="display: none;">
+        <div class="filter-bar">
+          <div><strong>UPSTREAM ERROR & RATE LIMIT LOGS</strong></div>
+          <button onclick="loadErrors()" class="btn-sm">REFRESH</button>
+        </div>
+
+        <div class="table-box">
+          <table>
+            <thead>
+              <tr>
+                <th>TIMESTAMP</th>
+                <th>PROVIDER</th>
+                <th>MODEL</th>
+                <th>HTTP</th>
+                <th>UPSTREAM ERROR SNIPPET</th>
+              </tr>
+            </thead>
+            <tbody id="errorsTableBody">
+              <tr><td colspan="5" style="text-align: center; color: var(--text-dim);">Loading error stream...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- VIEW 9: SETTINGS -->
+      <section id="view-settings" style="display: none;">
+        <div class="panel" style="max-width: 650px; margin-bottom: 20px;">
+          <div class="panel-head">
+            <span class="panel-title">CORE GATEWAY SECURITY</span>
+            <button onclick="saveRouterSettings()" class="btn-green btn-sm">SAVE CONFIG</button>
+          </div>
+          <div class="panel-body">
+            <span class="input-lbl">REQUIRE API KEY ON GATEWAY</span>
+            <select id="cfgRequireApiKey" style="width: 100%;">
+              <option value="true">YES - ENFORCE BEARER KEY</option>
+              <option value="false">NO - PERMIT LOCAL ACCESS</option>
+            </select>
+
+            <span class="input-lbl">WEB UI LOGIN</span>
+            <select id="cfgRequireLogin" style="width: 100%;">
+              <option value="true">ENABLED</option>
+              <option value="false">DISABLED</option>
+            </select>
+
+            <span class="input-lbl">GOOGLE RECAPTCHA V3 SITE KEY</span>
+            <input type="text" id="cfgRecaptchaSiteKey" placeholder="6L..." style="width: 100%;" />
+
+            <span class="input-lbl">GOOGLE RECAPTCHA V3 SECRET KEY</span>
+            <input type="password" id="cfgRecaptchaSecretKey" placeholder="6L..." style="width: 100%;" />
+          </div>
+        </div>
+
+        <div class="panel" style="max-width: 650px;">
+          <div class="panel-head">
+            <span class="panel-title">SQLITE SNAPSHOT ARCHIVES</span>
+            <button onclick="backupCurrentDb()" class="btn-green btn-sm">+ CREATE SNAPSHOT</button>
+          </div>
+          <div class="table-box">
+            <table>
+              <thead>
+                <tr>
+                  <th>FILENAME</th>
+                  <th>SIZE</th>
+                  <th>TIME</th>
+                </tr>
+              </thead>
+              <tbody id="backupsTableBody">
+                <tr><td colspan="3" style="text-align: center; color: var(--text-dim);">Loading backups...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- MODALS -->
+  <div class="modal-backdrop" id="accountModal">
+    <div class="modal-window">
+      <div class="modal-head">
+        <strong id="modalAccTitle">EDIT ACCOUNT</strong>
+        <button onclick="closeModal('accountModal')" class="btn-sm">&times;</button>
+      </div>
+      <div>
+        <input type="hidden" id="modalAccId" />
+        <span class="input-lbl">PROVIDER</span>
+        <input type="text" id="modalAccProvider" style="width: 100%;" />
+        <span class="input-lbl">DISPLAY NAME</span>
+        <input type="text" id="modalAccName" style="width: 100%;" />
+        <span class="input-lbl">EMAIL</span>
+        <input type="text" id="modalAccEmail" style="width: 100%;" />
+        <span class="input-lbl">PRIORITY</span>
+        <input type="number" id="modalAccPriority" value="1" style="width: 100%;" />
+        <span class="input-lbl">STATE</span>
+        <select id="modalAccIsActive" style="width: 100%;">
+          <option value="true">ACTIVE (1)</option>
+          <option value="false">DISABLED (0)</option>
+        </select>
+        <span class="input-lbl">JSON DATA</span>
+        <textarea id="modalAccData" style="width: 100%; height: 120px;"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button onclick="closeModal('accountModal')" class="btn-sm">CANCEL</button>
+        <button onclick="saveAccountModal()" class="btn-green btn-sm">SAVE</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="proxyModal">
+    <div class="modal-window">
+      <div class="modal-head">
+        <strong id="modalProxyTitle">ADD PROXY</strong>
+        <button onclick="closeModal('proxyModal')" class="btn-sm">&times;</button>
+      </div>
+      <div>
+        <input type="hidden" id="modalProxyId" />
+        <span class="input-lbl">NAME</span>
+        <input type="text" id="modalProxyName" placeholder="dc-pool-01" style="width: 100%;" />
+        <span class="input-lbl">PROXY URL (http://user:pass@host:port/)</span>
+        <input type="text" id="modalProxyUrl" placeholder="http://user:pass@1.2.3.4:8080/" style="width: 100%;" />
+        <span class="input-lbl">NO PROXY (comma separated)</span>
+        <input type="text" id="modalProxyNoProxy" placeholder="localhost,127.0.0.1" style="width: 100%;" />
+        <span class="input-lbl">TYPE</span>
+        <select id="modalProxyType" style="width: 100%;">
+          <option value="http">HTTP</option>
+          <option value="https">HTTPS</option>
+          <option value="socks5">SOCKS5</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button onclick="closeModal('proxyModal')" class="btn-sm">CANCEL</button>
+        <button onclick="submitProxyModal()" class="btn-green btn-sm">SAVE</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="providerModal">
+    <div class="modal-window">
+      <div class="modal-head">
+        <strong id="modalProvTitle">ADD PROVIDER</strong>
+        <button onclick="closeModal('providerModal')" class="btn-sm">&times;</button>
+      </div>
+      <div>
+        <input type="hidden" id="modalProvId" />
+        <span class="input-lbl">NAME</span>
+        <input type="text" id="modalProvName" placeholder="my-openai-gateway" style="width: 100%;" />
+        <span class="input-lbl">TYPE</span>
+        <select id="modalProvType" style="width: 100%;">
+          <option value="openai-compatible">openai-compatible</option>
+          <option value="anthropic-compatible">anthropic-compatible</option>
+          <option value="custom-embedding">custom-embedding</option>
+        </select>
+        <span class="input-lbl">PREFIX (model routing prefix)</span>
+        <input type="text" id="modalProvPrefix" placeholder="mygw" style="width: 100%;" />
+        <span class="input-lbl">API TYPE</span>
+        <input type="text" id="modalProvApiType" placeholder="chat" style="width: 100%;" />
+        <span class="input-lbl">BASE URL</span>
+        <input type="text" id="modalProvBaseUrl" placeholder="https://gateway.example.com/v1" style="width: 100%;" />
+      </div>
+      <div class="modal-actions">
+        <button onclick="closeModal('providerModal')" class="btn-sm">CANCEL</button>
+        <button onclick="submitProviderModal()" class="btn-green btn-sm">SAVE</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="importModal">
+    <div class="modal-window">
+      <div class="modal-head">
+        <strong>BULK IMPORT KIRO TOKENS</strong>
+        <button onclick="closeModal('importModal')" class="btn-sm">&times;</button>
+      </div>
+      <div>
+        <span class="input-lbl">JSON ARRAY</span>
+        <textarea id="importJsonText" style="width: 100%; height: 200px;" placeholder='[{"email":"...", "accessToken":"...", "refreshToken":"..."}]'></textarea>
+      </div>
+      <div class="modal-actions">
+        <button onclick="closeModal('importModal')" class="btn-sm">CANCEL</button>
+        <button onclick="submitBulkImport()" class="btn-green btn-sm">IMPORT</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="memberModal">
+    <div class="modal-window">
+      <div class="modal-head">
+        <strong>GENERATE MEMBER KEY</strong>
+        <button onclick="closeModal('memberModal')" class="btn-sm">&times;</button>
+      </div>
+      <div>
+        <span class="input-lbl">MEMBER NAME</span>
+        <input type="text" id="modalMemName" placeholder="Hermes Agent" style="width: 100%;" />
+        <span class="input-lbl">PLAN TIER</span>
+        <select id="modalMemPlan" style="width: 100%;">
+          <option value="Free">FREE (1M TOKENS)</option>
+          <option value="Standard" selected>STANDARD (10M TOKENS)</option>
+          <option value="Pro">PRO (50M TOKENS)</option>
+        </select>
+        <span class="input-lbl">MAX TOKEN LIMIT</span>
+        <input type="number" id="modalMemTokens" value="10000000" style="width: 100%;" />
+        <span class="input-lbl">SPENDING CAP (USD)</span>
+        <input type="number" id="modalMemCost" value="50" style="width: 100%;" />
+      </div>
+      <div class="modal-actions">
+        <button onclick="closeModal('memberModal')" class="btn-sm">CANCEL</button>
+        <button onclick="submitNewMember()" class="btn-green btn-sm">GENERATE</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="quotaModal">
+    <div class="modal-window">
+      <div class="modal-head">
+        <strong>UPDATE MEMBER QUOTA</strong>
+        <button onclick="closeModal('quotaModal')" class="btn-sm">&times;</button>
+      </div>
+      <div>
+        <input type="hidden" id="quotaMemId" />
+        <span class="input-lbl">PLAN</span>
+        <input type="text" id="quotaPlan" style="width: 100%;" />
+        <span class="input-lbl">TOKEN LIMIT</span>
+        <input type="number" id="quotaMaxTokens" style="width: 100%;" />
+        <span class="input-lbl">COST CAP (USD)</span>
+        <input type="number" id="quotaMaxCost" style="width: 100%;" />
+        <span class="input-lbl">BALANCE (USD)</span>
+        <input type="number" id="quotaBalance" style="width: 100%;" />
+      </div>
+      <div class="modal-actions">
+        <button onclick="closeModal('quotaModal')" class="btn-sm">CANCEL</button>
+        <button onclick="submitQuotaConfig()" class="btn-green btn-sm">UPDATE</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="customModelModal">
+    <div class="modal-window">
+      <div class="modal-head">
+        <strong>ADD CUSTOM MODEL</strong>
+        <button onclick="closeModal('customModelModal')" class="btn-sm">&times;</button>
+      </div>
+      <div>
+        <span class="input-lbl">PROVIDER ALIAS</span>
+        <input type="text" id="customProv" placeholder="fireworks, kiro..." style="width: 100%;" />
+        <span class="input-lbl">MODEL ID</span>
+        <input type="text" id="customId" placeholder="accounts/fireworks/models/glm-5" style="width: 100%;" />
+        <span class="input-lbl">NAME</span>
+        <input type="text" id="customName" placeholder="GLM 5" style="width: 100%;" />
+      </div>
+      <div class="modal-actions">
+        <button onclick="closeModal('customModelModal')" class="btn-sm">CANCEL</button>
+        <button onclick="submitCustomModel()" class="btn-green btn-sm">SAVE</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="pricingModal">
+    <div class="modal-window">
+      <div class="modal-head">
+        <strong>CONFIG PRICING RATE</strong>
+        <button onclick="closeModal('pricingModal')" class="btn-sm">&times;</button>
+      </div>
+      <div>
+        <span class="input-lbl">MODEL KEY</span>
+        <input type="text" id="priceKey" placeholder="claude-sonnet-4.5" style="width: 100%;" />
+        <span class="input-lbl">PROMPT USD / 1M</span>
+        <input type="number" id="priceIn" value="3.00" step="0.01" style="width: 100%;" />
+        <span class="input-lbl">COMPLETION USD / 1M</span>
+        <input type="number" id="priceOut" value="15.00" step="0.01" style="width: 100%;" />
+      </div>
+      <div class="modal-actions">
+        <button onclick="closeModal('pricingModal')" class="btn-sm">CANCEL</button>
+        <button onclick="submitPricing()" class="btn-green btn-sm">SAVE</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentAccounts = [];
+    let allAllowedModels = [];
+    let currentMembers = [];
+    let selectedIds = new Set();
+
+    // Equalizer variables
+    const TOTAL_BARS = 40;
+    let usageBarValues = new Array(TOTAL_BARS).fill(10);
+    let streamEventSource = null;
+    let recentSpeedCounter = 0;
+    let recentTokenCounter = 0;
+
+    function initBarsTrack() {
+      const container = document.getElementById("barsTrack");
+      if (!container) return;
+      container.innerHTML = usageBarValues.map((val, idx) => `
+        <div class="bar" id="bar-${idx}" style="height: ${val}%;"></div>
+      `).join("");
+    }
+
+    function pushUsageBar(pct, type = "normal") {
+      usageBarValues.shift();
+      usageBarValues.push(Math.max(8, Math.min(100, pct)));
+      for (let i = 0; i < TOTAL_BARS; i++) {
+        const el = document.getElementById(`bar-${i}`);
+        if (el) {
+          el.style.height = `${usageBarValues[i]}%`;
+          el.className = "bar";
+          if (usageBarValues[i] > 65) el.classList.add("cyan");
+          else if (usageBarValues[i] > 18) el.classList.add("green");
+          if (i === TOTAL_BARS - 1 && type === "err") el.classList.add("err");
+        }
+      }
+    }
+
+    function startLiveStream() {
+      if (streamEventSource) {
+        streamEventSource.close();
+        streamEventSource = null;
+      }
+
+      const statusEl = document.getElementById("streamStatus");
+      statusEl.textContent = "CONNECTED TO LIVE FEED";
+      statusEl.style.color = "var(--accent-green)";
+
+      streamEventSource = new EventSource("/api/usage/stream");
+
+      streamEventSource.onmessage = (e) => {
+        if (!e.data || e.data.startsWith(":")) return;
+        try {
+          const item = JSON.parse(e.data);
+          handleStreamItem(item);
+        } catch {}
+      };
+
+      streamEventSource.onerror = () => {
+        statusEl.textContent = "RECONNECTING...";
+        statusEl.style.color = "var(--accent-amber)";
+      };
+    }
+
+    const seenCompletionKeys = new Set();
+    function completionKey(item) {
+      return `${item.timestamp || ""}|${item.model || ""}|${item.provider || ""}|${item.promptTokens || 0}|${item.completionTokens || 0}`;
+    }
+
+    function handleStreamItem(item, source = "sse") {
+      const key = completionKey(item);
+      if (seenCompletionKeys.has(key)) return;
+      seenCompletionKeys.add(key);
+      if (seenCompletionKeys.size > 300) {
+        const first = seenCompletionKeys.values().next().value;
+        seenCompletionKeys.delete(first);
+      }
+      recentSpeedCounter++;
+      const totalTokens = (item.promptTokens || 0) + (item.completionTokens || 0);
+      recentTokenCounter += totalTokens;
+
+      const pct = Math.min(100, Math.max(18, Math.round((totalTokens / 4000) * 100)));
+      pushUsageBar(pct, item.status === "ok" ? "normal" : "err");
+
+      try {
+        const ok = item.status === "ok";
+        if (item.provider) {
+          const pId = "pool-" + sanitizeId(item.provider);
+          spawnRfPacket(`e-${pId}-gw`, ok, totalTokens);
+          flashRfNode(pId, 600);
+          flashRfNode("gw-core", 600);
+          const flowEl = document.getElementById(`${pId}-flow`);
+          if (flowEl) flowEl.textContent = `${totalTokens.toLocaleString()} tok &bull; ${escapeHtml(item.model || '')}`;
+        }
+        if (topoApis.length) {
+          topoApiCursor = (topoApiCursor + 1) % topoApis.length;
+          const target = topoApis[topoApiCursor];
+          const aId = "api-" + sanitizeId(target.id || target.key);
+          const eId = `e-gw-${aId}`;
+          spawnRfPacket(eId, ok, totalTokens);
+          flashRfNode(aId, 600);
+          const flow = document.getElementById(`flow-${eId}`);
+          if (flow) {
+            flow.setAttribute("class", ok ? "rf-edge-flow cyan" : "rf-edge-flow err");
+            setTimeout(() => { try { flow.setAttribute("class", "rf-edge-flow idle"); } catch {} }, 1200);
+          }
+        }
+      } catch {}
+
+      const feed = document.getElementById("liveFeedList");
+      if (feed) {
+        if (feed.children.length === 1 && feed.children[0].textContent.includes("Connecting")) {
+          feed.innerHTML = "";
+        }
+        const row = document.createElement("div");
+        row.className = `feed-row ${item.status === "ok" ? "" : "err"}`;
+        const time = item.timestamp ? item.timestamp.slice(11, 19) : new Date().toLocaleTimeString();
+        row.innerHTML = `
+          <div>
+            <span style="color: var(--text-dim); margin-right: 8px;">${time}</span>
+            <span class="tag tag-cyan" style="margin-right: 6px;">${escapeHtml(item.provider || 'AI')}</span>
+            <strong style="color: var(--text);">${escapeHtml(item.model || 'unknown')}</strong>
+          </div>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <span style="color: var(--text-dim);">${totalTokens.toLocaleString()} tokens</span>
+            <span class="tag ${item.status === 'ok' ? 'tag-green' : 'tag-red'}">${escapeHtml(item.status || 'OK')}</span>
+          </div>
+        `;
+        feed.prepend(row);
+        if (feed.children.length > 25) feed.removeChild(feed.lastChild);
+      }
+    }
+
+    // LIVE GATEWAY POLLER: event per-request yang sedang terjadi.
+    // Console 9router dibuang (stdio ignore) & tidak ada file log, jadi yang
+    // dipakai adalah /api/live/usage (passthrough read-only ke :20128):
+    // - activeRequests[] = request yang SEDANG in-flight saat itu juga
+    // - recentRequests[] = completion terbaru (dedupe terhadap SSE SQLite)
+    let livePollTimer = null;
+    let liveActiveCount = 0;
+
+    async function fetchLiveUsage() {
+      try {
+        const res = await fetch("/api/live/usage");
+        const data = await res.json();
+        if (!data.ok || !data.live) return;
+        const live = data.live;
+
+        // 1. In-flight = request yang SEDANG berjalan: wire menyala + paket jalan.
+        // Saat idle semua wire kembali ke .idle (animasi paused).
+        const actives = Array.isArray(live.activeRequests) ? live.activeRequests : [];
+        liveActiveCount = actives.reduce((a, r) => a + (r.count || 1), 0);
+
+        // Update Top Active Banner
+        const actBanner = document.getElementById("rfActiveBanner");
+        const actBannerText = document.getElementById("rfActiveBannerText");
+        if (actBanner && actBannerText) {
+          if (liveActiveCount > 0) {
+            actBanner.style.display = "flex";
+            const sample = actives[0] || {};
+            actBannerText.textContent = `${liveActiveCount} in-flight request(s) active • ${escapeHtml(sample.provider || '')} (${escapeHtml(sample.model || '')})`;
+          } else {
+            actBanner.style.display = "none";
+          }
+        }
+
+        const gwFlow = document.getElementById("gwFlow");
+        if (gwFlow) gwFlow.textContent = liveActiveCount > 0 ? `${liveActiveCount} IN-FLIGHT • ${recentTokenCounter.toLocaleString()} TOK / 5S` : `${recentTokenCounter.toLocaleString()} TOK / 5S`;
+        const statusEl = document.getElementById("streamStatus");
+        if (statusEl) {
+          statusEl.textContent = liveActiveCount > 0 ? `LIVE: ${liveActiveCount} REQUEST BERJALAN` : "LIVE: IDLE — MENUNGGU REQUEST";
+          statusEl.style.color = liveActiveCount > 0 ? "var(--accent-green)" : "var(--text-dim)";
+        }
+
+        // Agregasi per provider: wire + label count ala React Flow.
+        const provAgg = {};
+        for (const r of actives) {
+          if (!r.provider) continue;
+          const a = provAgg[r.provider] || (provAgg[r.provider] = { count: 0, model: r.model });
+          a.count += r.count || 1;
+          if (!a.model && r.model) a.model = r.model;
+        }
+        const activeProvs = new Set(Object.keys(provAgg));
+        topoPools.forEach(p => {
+          const pId = "pool-" + sanitizeId(p.provider);
+          const eId = `e-${pId}-gw`;
+          const flowEl = document.getElementById(`flow-${eId}`);
+          const isActive = activeProvs.has(p.provider);
+          if (flowEl) flowEl.setAttribute("class", isActive ? "rf-edge-flow green" : "rf-edge-flow idle");
+          const agg = provAgg[p.provider];
+          setRfEdgeLabel(eId, agg ? `${agg.count}x IN-FLIGHT` : "");
+        });
+
+        const seenProv = new Set();
+        for (const r of actives.slice(0, 12)) {
+          const prov = r.provider || "unknown";
+          const pId = "pool-" + sanitizeId(prov);
+          const eId = `e-${pId}-gw`;
+          if (!rfEdges[eId]) continue;
+          const n = Math.min(r.count || 1, 3);
+          for (let k = 0; k < n; k++) spawnRfPacket(eId, true, 2000);
+          flashRfNode(pId, 900);
+          flashRfNode("gw-core", 900);
+          if (!seenProv.has(prov)) {
+            seenProv.add(prov);
+            const flowEl = document.getElementById(`${pId}-flow`);
+            if (flowEl) flowEl.textContent = `${(provAgg[prov] || {}).count || r.count || 1}x IN-FLIGHT • ${escapeHtml((provAgg[prov] || {}).model || r.model || "")}`;
+          }
+        }
+        // Kembalikan label pool yang sudah tidak ada request-nya ke idle.
+        topoPools.forEach(p => {
+          if (!activeProvs.has(p.provider)) {
+            const pId = "pool-" + sanitizeId(p.provider);
+            const flowEl = document.getElementById(`${pId}-flow`);
+            if (flowEl && flowEl.textContent.includes("IN-FLIGHT")) flowEl.textContent = "idle — ready";
+          }
+        });
+
+        // Daftar request berjalan di box gateway (model • akun).
+        const gwList = document.getElementById("gwActiveList");
+        if (gwList) {
+          gwList.innerHTML = actives.slice(0, 5).map(r =>
+            `<div class="gw-active-item">● ${escapeHtml(r.model || "?")} • ${escapeHtml(r.account || r.provider || "?")}</div>`
+          ).join("") || `<div style="color:var(--text-dim);font-size:10px;">— tidak ada request berjalan —</div>`;
+        }
+
+        // 2. Completion terbaru: hanya yang belum pernah terlihat (dedup SSE)
+        const recents = Array.isArray(live.recentRequests) ? live.recentRequests : [];
+        let fresh = 0;
+        for (const item of recents) {
+          if (seenCompletionKeys.has(completionKey(item))) continue;
+          handleStreamItem(item, "live");
+          fresh++;
+          if (fresh >= 6) break;
+        }
+      } catch {}
+    }
+
+    function startLivePoller() {
+      if (livePollTimer) clearInterval(livePollTimer);
+      fetchLiveUsage();
+      livePollTimer = setInterval(fetchLiveUsage, 2000);
+    }
+
+    setInterval(() => {
+      const speedEl = document.getElementById("streamSpeedBadge");
+      const tokEl = document.getElementById("streamTokBadge");
+      if (speedEl) speedEl.textContent = `${recentSpeedCounter * 12} REQ / MIN`;
+      if (tokEl) tokEl.textContent = `${recentTokenCounter.toLocaleString()} TOKENS / 5S`;
+      const gwFlow = document.getElementById("gwFlow");
+      if (gwFlow) gwFlow.textContent = liveActiveCount > 0 ? `${liveActiveCount} IN-FLIGHT • ${recentTokenCounter.toLocaleString()} TOK / 5S` : `${recentTokenCounter.toLocaleString()} TOK / 5S`;
+      recentSpeedCounter = 0;
+      recentTokenCounter = 0;
+
+      if (usageBarValues[TOTAL_BARS - 1] <= 15) {
+        pushUsageBar(Math.floor(Math.random() * 8) + 8);
+      }
+    }, 5000);
+
+    // REACTFLOW INTERACTIVE CANVAS ENGINE
+    let topoPools = [];
+    let topoApis = [];
+    let topoApiCursor = 0;
+    let rfNodes = {};
+    let rfEdges = {};
+    let rfScale = 1;
+    let rfLocked = false;
+    let rfDraggingNodeId = null;
+    let rfDragStartX = 0, rfDragStartY = 0;
+    let rfNodeStartX = 0, rfNodeStartY = 0;
+
+    function sanitizeId(s) {
+      return String(s || "x").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 40);
+    }
+
+    function renderTopology(pools, apis) {
+      topoPools = (pools || []).slice(0, 5);
+      topoApis = (apis || []).slice(0, 5);
+
+      const totalActive = topoPools.reduce((a, p) => a + (p.activeCount || 0), 0);
+      const totalCount = topoPools.reduce((a, p) => a + (p.count || 0), 0);
+      const bPool = document.getElementById("topoPoolBadge");
+      const bApi = document.getElementById("topoApiBadge");
+      if (bPool) bPool.textContent = `POOL: ${totalActive}/${totalCount} ACTIVE`;
+      if (bApi) bApi.textContent = `API: ${topoApis.length} KEYS`;
+
+      // Inisialisasi node posisi jika belum ada
+      const H = 440;
+      const leftCount = Math.max(topoPools.length, 1);
+      const rightCount = Math.max(topoApis.length, 1);
+
+      topoPools.forEach((p, i) => {
+        const id = "pool-" + sanitizeId(p.provider);
+        const y = Math.round(25 + i * ((H - 110) / Math.max(leftCount - 1, 1)));
+        if (!rfNodes[id]) {
+          rfNodes[id] = { id, type: "pool", provider: p.provider, x: 28, y, w: 220, h: 62, data: p };
+        } else {
+          rfNodes[id].data = p;
+        }
+      });
+
+      // Gateway Core Node di tengah
+      const gwId = "gw-core";
+      if (!rfNodes[gwId]) {
+        rfNodes[gwId] = { id: gwId, type: "gateway", x: 370, y: 135, w: 255, h: 165 };
+      }
+
+      // Member Nodes di kanan
+      topoApis.forEach((m, i) => {
+        const id = "api-" + sanitizeId(m.id || m.key);
+        const y = Math.round(25 + i * ((H - 110) / Math.max(rightCount - 1, 1)));
+        if (!rfNodes[id]) {
+          rfNodes[id] = { id, type: "api", member: m, x: 745, y, w: 225, h: 62, data: m };
+        } else {
+          rfNodes[id].data = m;
+        }
+      });
+
+      // Bangun Edges
+      rfEdges = {};
+      topoPools.forEach(p => {
+        const pId = "pool-" + sanitizeId(p.provider);
+        const eId = `e-${pId}-gw`;
+        rfEdges[eId] = { id: eId, source: pId, target: gwId, type: "pool", provider: p.provider, active: false, label: "" };
+      });
+      topoApis.forEach(m => {
+        const aId = "api-" + sanitizeId(m.id || m.key);
+        const eId = `e-gw-${aId}`;
+        rfEdges[eId] = { id: eId, source: gwId, target: aId, type: "api", memberId: m.id || m.key, active: false, label: "" };
+      });
+
+      rfRenderNodesDOM();
+      rfRenderEdges();
+      rfRenderMiniMap();
+    }
+
+    function rfRenderNodesDOM() {
+      const container = document.getElementById("rfNodesLayer");
+      if (!container) return;
+      container.innerHTML = "";
+
+      Object.values(rfNodes).forEach(node => {
+        const el = document.createElement("div");
+        el.id = node.id;
+        el.className = `rf-node rf-node-${node.type}`;
+        el.style.width = `${node.w}px`;
+        el.style.transform = `translate3d(${node.x}px, ${node.y}px, 0)`;
+
+        if (node.type === "pool") {
+          const p = node.data || {};
+          const pct = p.count ? Math.round(((p.activeCount || 0) / p.count) * 100) : 0;
+          el.innerHTML = `
+            <div class="rf-handle rf-handle-right" title="Output Source"></div>
+            <div class="rf-node-head">
+              <span class="rf-node-title">${escapeHtml(p.provider || node.provider)}</span>
+              <span class="tag tag-green">${p.activeCount || 0}/${p.count || 0}</span>
+            </div>
+            <div class="rf-node-meta">
+              <span>Pool status: ${pct}% operational</span>
+              <span id="${node.id}-flow" style="color: var(--accent-green);">idle — ready</span>
+            </div>`;
+        } else if (node.type === "gateway") {
+          el.innerHTML = `
+            <div class="rf-handle rf-handle-left" title="Input Port"></div>
+            <div class="rf-handle rf-handle-right" title="Output Port"></div>
+            <div class="rf-node-head">
+              <span style="font-size: 10px; color: var(--text-dim); letter-spacing: 0.5px;">ROUTER PROCESSOR</span>
+              <span class="tag tag-green" id="rfGwStatusBadge">ONLINE</span>
+            </div>
+            <div style="font-size: 17px; font-weight: 800; color: var(--accent-green); margin: 2px 0;">9ROUTER :20128</div>
+            <div style="font-size: 10px; color: var(--text-muted); display: flex; justify-content: space-between;">
+              <span id="gwLatency">- MS LATENCY</span>
+              <span id="gwFlow" style="color: var(--accent-cyan);">0 TOK/5S</span>
+            </div>
+            <div id="gwActiveList" class="gw-active-list"></div>`;
+        } else if (node.type === "api") {
+          const m = node.data || {};
+          const shortKey = String(m.key || "").slice(0, 10) + "...";
+          el.innerHTML = `
+            <div class="rf-handle rf-handle-left" title="Input Target"></div>
+            <div class="rf-node-head">
+              <span class="rf-node-title">${escapeHtml(m.name || "Member")}</span>
+              <span class="tag ${m.isActive ? 'tag-cyan' : 'tag-red'}">${m.isActive ? 'LIVE' : 'OFF'}</span>
+            </div>
+            <div class="rf-node-meta">
+              <span class="mono">${escapeHtml(shortKey)}</span>
+              <span style="color: var(--text-muted);">${(m.reqs || 0).toLocaleString()} reqs &bull; $${(m.totalCost || 0).toFixed(2)}</span>
+            </div>`;
+        }
+
+        // Drag Handler
+        el.addEventListener("mousedown", (e) => {
+          if (rfLocked || e.button !== 0) return;
+          rfDraggingNodeId = node.id;
+          rfDragStartX = e.clientX;
+          rfDragStartY = e.clientY;
+          rfNodeStartX = node.x;
+          rfNodeStartY = node.y;
+          el.classList.add("dragging");
+          e.stopPropagation();
+        });
+
+        // Hover Effect on connected edges
+        el.addEventListener("mouseenter", () => {
+          rfHighlightConnectedEdges(node.id, true);
+        });
+        el.addEventListener("mouseleave", () => {
+          rfHighlightConnectedEdges(node.id, false);
+        });
+
+        container.appendChild(el);
+      });
+    }
+
+    function rfCalcHandlePos(node, isRight) {
+      if (node.type === "gateway") {
+        return {
+          x: isRight ? node.x + node.w : node.x,
+          y: node.y + 40
+        };
+      }
+      return {
+        x: isRight ? node.x + node.w : node.x,
+        y: node.y + (node.h / 2)
+      };
+    }
+
+    function rfBezierD(s, t) {
+      const dx = Math.max(Math.abs(t.x - s.x) * 0.45, 35);
+      return `M ${s.x} ${s.y} C ${s.x + dx} ${s.y}, ${t.x - dx} ${t.y}, ${t.x} ${t.y}`;
+    }
+
+    function rfBezierMid(s, t) {
+      const mx1 = s.x + Math.max(Math.abs(t.x - s.x) * 0.45, 35);
+      const mx2 = t.x - Math.max(Math.abs(t.x - s.x) * 0.45, 35);
+      // Cubic bezier midpoint formula at t = 0.5
+      const midX = 0.125 * s.x + 0.375 * mx1 + 0.375 * mx2 + 0.125 * t.x;
+      const midY = 0.125 * s.y + 0.375 * s.y + 0.375 * t.y + 0.125 * t.y;
+      return { x: midX, y: midY };
+    }
+
+    function rfRenderEdges() {
+      const svg = document.getElementById("rfEdgesSvg");
+      const labelsLayer = document.getElementById("rfEdgeLabels");
+      if (!svg || !labelsLayer) return;
+
+      // Hapus path lama kecuali <defs>
+      const defs = svg.querySelector("defs");
+      svg.innerHTML = "";
+      if (defs) svg.appendChild(defs);
+      labelsLayer.innerHTML = "";
+
+      const NS = "http://www.w3.org/2000/svg";
+
+      Object.values(rfEdges).forEach(edge => {
+        const sourceNode = rfNodes[edge.source];
+        const targetNode = rfNodes[edge.target];
+        if (!sourceNode || !targetNode) return;
+
+        const sPos = rfCalcHandlePos(sourceNode, true);
+        const tPos = rfCalcHandlePos(targetNode, false);
+        const pathD = rfBezierD(sPos, tPos);
+        edge.pathD = pathD;
+
+        // Base background wire
+        const base = document.createElementNS(NS, "path");
+        base.setAttribute("d", pathD);
+        base.setAttribute("class", "rf-edge-base");
+        base.setAttribute("id", `base-${edge.id}`);
+        svg.appendChild(base);
+
+        // Animated flow wire
+        const flow = document.createElementNS(NS, "path");
+        flow.setAttribute("d", pathD);
+        const colorClass = edge.type === "pool" ? "green" : "cyan";
+        const stateClass = edge.active ? colorClass : "idle";
+        flow.setAttribute("class", `rf-edge-flow ${stateClass}`);
+        flow.setAttribute("id", `flow-${edge.id}`);
+        svg.appendChild(flow);
+
+        // Midpoint floating label
+        const mid = rfBezierMid(sPos, tPos);
+        const lbl = document.createElement("div");
+        lbl.id = `lbl-${edge.id}`;
+        lbl.className = `rf-edge-label ${edge.active ? 'active' : ''}`;
+        lbl.style.left = `${mid.x}px`;
+        lbl.style.top = `${mid.y}px`;
+        lbl.style.display = edge.label ? "block" : "none";
+        lbl.textContent = edge.label || "";
+        labelsLayer.appendChild(lbl);
+      });
+    }
+
+    function rfUpdateEdgesOnly() {
+      Object.values(rfEdges).forEach(edge => {
+        const s = rfNodes[edge.source];
+        const t = rfNodes[edge.target];
+        if (!s || !t) return;
+
+        const sPos = rfCalcHandlePos(s, true);
+        const tPos = rfCalcHandlePos(t, false);
+        const pathD = rfBezierD(sPos, tPos);
+        edge.pathD = pathD;
+
+        const base = document.getElementById(`base-${edge.id}`);
+        const flow = document.getElementById(`flow-${edge.id}`);
+        if (base) base.setAttribute("d", pathD);
+        if (flow) flow.setAttribute("d", pathD);
+
+        const lbl = document.getElementById(`lbl-${edge.id}`);
+        if (lbl) {
+          const mid = rfBezierMid(sPos, tPos);
+          lbl.style.left = `${mid.x}px`;
+          lbl.style.top = `${mid.y}px`;
+        }
+      });
+    }
+
+    function rfHighlightConnectedEdges(nodeId, highlight) {
+      Object.values(rfEdges).forEach(edge => {
+        if (edge.source === nodeId || edge.target === nodeId) {
+          const flow = document.getElementById(`flow-${edge.id}`);
+          if (flow && !flow.classList.contains("idle")) {
+            flow.style.strokeWidth = highlight ? "4px" : "2.5px";
+          }
+        }
+      });
+    }
+
+    // Global Drag Move & Up Listeners
+    window.addEventListener("mousemove", (e) => {
+      if (!rfDraggingNodeId) return;
+      const node = rfNodes[rfDraggingNodeId];
+      if (!node) return;
+
+      const dx = (e.clientX - rfDragStartX) / rfScale;
+      const dy = (e.clientY - rfDragStartY) / rfScale;
+      node.x = Math.max(10, Math.min(760, rfNodeStartX + dx));
+      node.y = Math.max(10, Math.min(370, rfNodeStartY + dy));
+
+      const el = document.getElementById(node.id);
+      if (el) el.style.transform = `translate3d(${node.x}px, ${node.y}px, 0)`;
+
+      rfUpdateEdgesOnly();
+      rfRenderMiniMap();
+    });
+
+    window.addEventListener("mouseup", () => {
+      if (rfDraggingNodeId) {
+        const el = document.getElementById(rfDraggingNodeId);
+        if (el) el.classList.remove("dragging");
+        rfDraggingNodeId = null;
+      }
+    });
+
+    // React Flow Controls Functions
+    function rfZoom(factor) {
+      rfScale = Math.max(0.65, Math.min(1.6, rfScale * factor));
+      const vp = document.getElementById("rfViewport");
+      if (vp) vp.style.transform = `scale(${rfScale})`;
+      rfRenderMiniMap();
+    }
+    function rfFitView() {
+      rfScale = 1;
+      const vp = document.getElementById("rfViewport");
+      if (vp) vp.style.transform = "scale(1)";
+      rfRenderMiniMap();
+    }
+    function rfToggleLock() {
+      rfLocked = !rfLocked;
+      const btn = document.getElementById("rfLockBtn");
+      const badge = document.getElementById("rfLiveStateBadge");
+      if (btn) btn.textContent = rfLocked ? "🔒" : "🔓";
+      if (badge) badge.textContent = rfLocked ? "CANVAS LOCKED" : "DRAG NODES FREELY";
+    }
+    function rfResetLayout() {
+      rfNodes = {};
+      renderTopology(topoPools.map(p => p.data || p), topoApis.map(m => m.data || m));
+      rfFitView();
+    }
+
+    // MiniMap Render
+    function rfRenderMiniMap() {
+      const svg = document.getElementById("rfMiniMapSvg");
+      if (!svg) return;
+      const NS = "http://www.w3.org/2000/svg";
+      svg.innerHTML = "";
+
+      Object.values(rfNodes).forEach(n => {
+        const rect = document.createElementNS(NS, "rect");
+        rect.setAttribute("x", n.x);
+        rect.setAttribute("y", n.y);
+        rect.setAttribute("width", n.w);
+        rect.setAttribute("height", n.h);
+        rect.setAttribute("class", `rf-minimap-node ${n.type}`);
+        svg.appendChild(rect);
+      });
+    }
+
+    // Packet Particle Animation on Edge
+    function spawnRfPacket(edgeKey, ok = true, size = 1) {
+      const svg = document.getElementById("rfEdgesSvg");
+      const edge = Object.values(rfEdges).find(e => e.id === edgeKey || e.source === edgeKey || e.target === edgeKey || (e.provider && edgeKey.includes(e.provider)));
+      if (!svg || !edge || !edge.pathD) return;
+
+      const NS = "http://www.w3.org/2000/svg";
+      const c = document.createElementNS(NS, "circle");
+      const r = ok ? (size > 8000 ? 6.5 : 4.5) : 5;
+      const color = ok ? (size > 8000 ? "#0b6e99" : "#0a7d3b") : "#cf222e";
+
+      c.setAttribute("r", String(r));
+      c.setAttribute("fill", color);
+      c.setAttribute("class", "rf-packet");
+      c.style.color = color;
+
+      const anim = document.createElementNS(NS, "animateMotion");
+      anim.setAttribute("dur", ok ? "0.75s" : "1.0s");
+      anim.setAttribute("repeatCount", "1");
+      anim.setAttribute("path", edge.pathD);
+      c.appendChild(anim);
+
+      svg.appendChild(c);
+      setTimeout(() => { try { svg.removeChild(c); } catch {} }, 1200);
+
+      const flow = document.getElementById(`flow-${edge.id}`);
+      if (flow && !ok) {
+        flow.classList.add("err");
+        setTimeout(() => flow.classList.remove("err"), 800);
+      }
+    }
+
+    function flashRfNode(nodeId, ms = 700) {
+      const el = document.getElementById(nodeId);
+      if (!el) return;
+      el.classList.add("node-hot");
+      setTimeout(() => el.classList.remove("node-hot"), ms);
+    }
+
+    function setRfEdgeLabel(edgeId, text) {
+      const lbl = document.getElementById(`lbl-${edgeId}`);
+      if (!lbl) return;
+      if (!text) {
+        lbl.style.display = "none";
+        lbl.classList.remove("active");
+        return;
+      }
+      lbl.textContent = text;
+      lbl.style.display = "block";
+      lbl.classList.add("active");
+    }
+
+    // GENERIC CLIENT-SIDE PAGINATION (dipakai semua tabel besar)
+    const PagerState = {};
+    const PagerRender = {};
+    function pagerInit(name, renderFn, perPage) {
+      PagerState[name] = { page: 1, perPage: perPage || 25 };
+      PagerRender[name] = renderFn;
+    }
+    function pagerReset(name) {
+      if (PagerState[name]) PagerState[name].page = 1;
+    }
+    function pagerSlice(name, arr) {
+      const st = PagerState[name] || { page: 1, perPage: 25 };
+      const start = (st.page - 1) * st.perPage;
+      return arr.slice(start, start + st.perPage);
+    }
+    function pagerGoto(name, page) {
+      const st = PagerState[name];
+      if (!st || !PagerRender[name]) return;
+      st.page = page;
+      PagerRender[name]();
+    }
+    function pagerSetPerPage(name, val) {
+      const st = PagerState[name];
+      if (!st) return;
+      st.perPage = parseInt(val, 10) || 25;
+      st.page = 1;
+      if (PagerRender[name]) PagerRender[name]();
+    }
+    function renderPager(name, total) {
+      const el = document.getElementById("pager-" + name);
+      if (!el) return;
+      const st = PagerState[name] || { page: 1, perPage: 25 };
+      const pages = Math.max(1, Math.ceil(total / st.perPage));
+      if (st.page > pages) st.page = pages;
+      const start = total === 0 ? 0 : (st.page - 1) * st.perPage + 1;
+      const end = Math.min(total, st.page * st.perPage);
+      el.innerHTML = `
+        <span class="pager-info">Showing ${start}–${end} of ${total.toLocaleString()}</span>
+        <div class="pager-controls">
+          <select onchange="pagerSetPerPage('${name}', this.value)">
+            ${[10, 25, 50, 100].map(n => `<option value="${n}" ${st.perPage === n ? "selected" : ""}>${n}/page</option>`).join("")}
+          </select>
+          <button class="btn-sm" onclick="pagerGoto('${name}', 1)" ${st.page <= 1 ? "disabled" : ""}>«</button>
+          <button class="btn-sm" onclick="pagerGoto('${name}', ${st.page - 1})" ${st.page <= 1 ? "disabled" : ""}>‹</button>
+          <span class="pager-info">${st.page} / ${pages}</span>
+          <button class="btn-sm" onclick="pagerGoto('${name}', ${st.page + 1})" ${st.page >= pages ? "disabled" : ""}>›</button>
+          <button class="btn-sm" onclick="pagerGoto('${name}', ${pages})" ${st.page >= pages ? "disabled" : ""}>»</button>
+        </div>`;
+    }
+
+    function switchNav(nav) {
+      document.querySelectorAll(".nav-item").forEach(el => el.classList.remove("active"));
+      event.currentTarget.classList.add("active");
+
+      const views = ["dashboard", "accounts", "providers", "proxies", "models", "custom", "members", "quotas", "pricing", "errors", "settings"];
+      views.forEach(v => {
+        const el = document.getElementById(`view-${v}`);
+        if (el) el.style.display = (v === nav) ? "block" : "none";
+      });
+
+      const titles = {
+        dashboard: "USAGE & ANALYTICS",
+        accounts: "PROVIDER ACCOUNTS (SQLITE)",
+        providers: "PROVIDER NODES & ENDPOINTS",
+        proxies: "PROXY POOLS MANAGER",
+        models: "ALLOWED MODELS & BLACKLIST",
+        custom: "CUSTOM MODEL MAPPINGS",
+        members: "GATEWAY MEMBERS & API KEYS",
+        quotas: "TOKEN QUOTAS & CONSUMPTION",
+        pricing: "PRICING MATRIX",
+        errors: "ERROR & FAILURE STREAM",
+        settings: "SECURITY & SYSTEM SETTINGS"
+      };
+      document.getElementById("pageTitle").textContent = titles[nav] || "ADMIN";
+
+      if (nav === "dashboard") { refreshDashboard(); loadUsagePeriod(); }
+      if (nav === "accounts") loadAccounts();
+      if (nav === "providers") loadProviderNodes();
+      if (nav === "proxies") loadProxies();
+      if (nav === "models") loadAllowedModels();
+      if (nav === "custom") loadCustomModels();
+      if (nav === "members" || nav === "quotas") loadMembers();
+      if (nav === "pricing") loadPricing();
+      if (nav === "errors") loadErrors();
+      if (nav === "settings") loadSettings();
+    }
+
+    async function checkInstance() {
+      try {
+        const res = await fetch("/api/instances");
+        const data = await res.json();
+        if (!data.ok) return;
+
+        const live = data.live;
+        document.getElementById("sbPid").textContent = live.pid || "OFFLINE";
+        document.getElementById("sbDbSize").textContent = (live.dbSize / (1024 * 1024)).toFixed(2) + " MB";
+        document.getElementById("statLiveLatency").textContent = live.running ? `${live.ping.latency} MS` : "OFFLINE";
+      } catch (e) {
+        console.error("Instance check err:", e);
+      }
+    }
+
+    async function refreshDashboard() {
+      try {
+        const [statsRes, membersRes] = await Promise.all([
+          fetch("/api/db/stats").then(r => r.json()),
+          fetch("/api/members").then(r => r.json())
+        ]);
+
+        if (statsRes.ok) {
+          document.getElementById("statAccTotal").textContent = statsRes.totalAccounts;
+          document.getElementById("statAccSub").textContent = `${statsRes.activeAccounts} active in pool`;
+          document.getElementById("statErrTotal").textContent = statsRes.errorRequests;
+          document.getElementById("sbAccCount").textContent = statsRes.totalAccounts;
+          document.getElementById("sbErrCount").textContent = statsRes.errorRequests;
+
+          document.getElementById("statReqTotal").textContent = (statsRes.lifetime?.requests || 0).toLocaleString();
+          document.getElementById("statTokTotal").textContent = `${(statsRes.lifetime?.totalTokens || 0).toLocaleString()}`;
+          document.getElementById("statCostTotal").textContent = `$${(statsRes.lifetime?.totalCost || 0).toFixed(2)} USD`;
+        }
+        if (membersRes.ok) {
+          document.getElementById("sbKeyCount").textContent = membersRes.count;
+        }
+        try {
+          const pools = statsRes.ok ? (statsRes.providers || []) : [];
+          const apis = membersRes.ok ? (membersRes.members || []).slice().sort((a, b) => (b.reqs || 0) - (a.reqs || 0)).slice(0, 6) : [];
+          if (pools.length || apis.length) renderTopology(pools, apis);
+        } catch {}
+      } catch (e) {
+        console.error("Dashboard refresh err:", e);
+      }
+    }
+
+    // USAGE OVERVIEW (9ROUTER OFFICIAL DASHBOARD LAYOUT & METRICS)
+    let usagePeriod = "24h";
+    let chartMode = "tokens";
+    let currentChartBuckets = [];
+    let currentRequestLogs = [];
+    const LIVE_PERIODS = new Set(["today", "24h", "7d", "30d", "60d"]);
+
+    function switchUsageSubTab(tab) {
+      document.getElementById("btnSubTabOverview").classList.toggle("active", tab === "overview");
+      document.getElementById("btnSubTabLogs").classList.toggle("active", tab === "logs");
+      document.getElementById("usageSubTabOverview").style.display = tab === "overview" ? "block" : "none";
+      document.getElementById("usageSubTabLogs").style.display = tab === "logs" ? "block" : "none";
+      if (tab === "logs") loadRequestLogs();
+    }
+
+    function toggleFlowGraph() {
+      const panel = document.getElementById("rfFlowPanel");
+      const btn = document.getElementById("btnToggleFlow");
+      const isHidden = panel.style.display === "none";
+      panel.style.display = isHidden ? "block" : "none";
+      btn.textContent = isHidden ? "✕ Hide Graph" : "☊ Flow Graph";
+      if (isHidden) {
+        setTimeout(() => {
+          rfRenderNodesDOM();
+          rfRenderEdges();
+          rfRenderMiniMap();
+        }, 50);
+      }
+    }
+
+    function setChartMode(mode) {
+      chartMode = mode;
+      const bTok = document.getElementById("btnChartModeTokens");
+      const bCost = document.getElementById("btnChartModeCost");
+      if (bTok) bTok.className = mode === "tokens" ? "btn-sm btn-green" : "btn-sm";
+      if (bCost) bCost.className = mode === "cost" ? "btn-sm btn-green" : "btn-sm";
+      renderUsageChart(currentChartBuckets);
+    }
+
+    function setUsagePeriod(p) {
+      usagePeriod = p;
+      document.querySelectorAll("#usagePeriodTabs .period-tab").forEach(el => {
+        el.classList.toggle("active", el.dataset.period === p);
+      });
+      const badge = document.getElementById("usageChartPeriodBadge");
+      if (badge) badge.textContent = p.toUpperCase();
+      loadUsagePeriod();
+    }
+
+    async function loadUsagePeriod() {
+      const p = usagePeriod;
+      const chartEl = document.getElementById("usageChartBars");
+      chartEl.innerHTML = `<div style="color:var(--text-dim);font-size:11px;">Loading ${p.toUpperCase()}...</div>`;
+      try {
+        if (LIVE_PERIODS.has(p)) {
+          const [statsRes, chartRes] = await Promise.all([
+            fetch(`/api/live/usage?period=${p}`).then(r => r.json()),
+            fetch(`/api/live/chart?period=${p === "today" ? "today" : p}`).then(r => r.json())
+          ]);
+          if (!statsRes.ok) throw new Error(statsRes.error || "live stats failed");
+          const live = statsRes.live || {};
+          renderUsageTotals({
+            requests: live.totalRequests || 0,
+            promptTokens: live.totalPromptTokens || 0,
+            cachedTokens: live.totalCachedTokens || 0,
+            completionTokens: live.totalCompletionTokens || 0,
+            totalCost: live.totalCost || 0
+          }, p);
+
+          currentChartBuckets = chartRes.ok && Array.isArray(chartRes.buckets) ? chartRes.buckets : [];
+          renderUsageChart(currentChartBuckets);
+
+          const models = Object.entries(live.byModel || {}).map(([name, v]) => ({
+            name,
+            provider: v.provider || "ai",
+            requests: v.requests || 0,
+            tokens: (v.promptTokens || 0) + (v.completionTokens || 0),
+            cost: v.cost || 0
+          })).sort((a, b) => b.tokens - a.tokens);
+
+          const accounts = Object.entries(live.byAccount || {}).map(([name, v]) => ({
+            name,
+            provider: v.provider || "ai",
+            requests: v.requests || 0,
+            tokens: (v.promptTokens || 0) + (v.completionTokens || 0),
+            cost: v.cost || 0
+          })).sort((a, b) => b.tokens - a.tokens);
+
+          renderUsageBreakdown(models.slice(0, 10), accounts.slice(0, 10));
+          const cMod = document.getElementById("countTopModels");
+          const cAcc = document.getElementById("countTopAccounts");
+          if (cMod) cMod.textContent = `${models.length} models`;
+          if (cAcc) cAcc.textContent = `${accounts.length} accounts`;
+        }
+      } catch (e) {
+        chartEl.innerHTML = `<div style="color:var(--accent-red);font-size:11px;">Gagal memuat ${p.toUpperCase()}: ${escapeHtml(e.message)}</div>`;
+      }
+    }
+
+    function renderUsageTotals(t, p) {
+      function fmt(n) {
+        if (n >= 1e9) return (n / 1e9).toFixed(2) + "B";
+        if (n >= 1e6) return (n / 1e6).toFixed(2) + "M";
+        if (n >= 1e3) return (n / 1e3).toFixed(1) + "k";
+        return (n || 0).toLocaleString();
+      }
+      document.getElementById("usageReqTotal").textContent = (t.requests || 0).toLocaleString();
+      document.getElementById("usageReqSub").textContent = `${p.toUpperCase()} completed`;
+      document.getElementById("usagePromptTokens").textContent = fmt(t.promptTokens || 0);
+      document.getElementById("usageCachedTokens").textContent = fmt(t.cachedTokens || 0);
+      document.getElementById("usageCompletionTokens").textContent = fmt(t.completionTokens || 0);
+      document.getElementById("usageCostTotal").textContent = `$${(t.totalCost || 0).toFixed(2)}`;
+    }
+
+    function renderUsageChart(buckets) {
+      const el = document.getElementById("usageChartBars");
+      if (!buckets || !buckets.length) {
+        el.innerHTML = `<div style="color:var(--text-dim);font-size:11px;">No bucket data for ${usagePeriod.toUpperCase()}.</div>`;
+        return;
+      }
+      const isTokens = chartMode === "tokens";
+      const maxVal = Math.max(...buckets.map(b => isTokens ? (b.tokens || 0) : (b.cost || 0)), 0.0001);
+
+      el.innerHTML = buckets.map(b => {
+        const val = isTokens ? (b.tokens || 0) : (b.cost || 0);
+        const h = Math.max(3, Math.round((val / maxVal) * 100));
+        const valStr = isTokens ? (val >= 1e6 ? (val / 1e6).toFixed(1) + "M" : val.toLocaleString()) + " tok" : "$" + val.toFixed(2);
+        const title = `${escapeHtml(b.label)} • ${valStr}`;
+        return `
+          <div class="usage-col" title="${title}">
+            <div class="usage-bar ${isTokens ? '' : 'cost'}" style="height:${h}%"></div>
+            <div class="usage-lbl">${escapeHtml(b.label)}</div>
+          </div>`;
+      }).join("");
+    }
+
+    function renderUsageBreakdown(models, accounts) {
+      const tm = document.getElementById("usageTopModels");
+      const ta = document.getElementById("usageTopAccounts");
+      if (tm) {
+        tm.innerHTML = models.length ? models.map(m => `
+          <tr>
+            <td><strong>${escapeHtml(m.name)}</strong></td>
+            <td>${m.requests.toLocaleString()}</td>
+            <td>${m.tokens.toLocaleString()}</td>
+            <td style="color:var(--accent-green);">$${m.cost.toFixed(2)}</td>
+          </tr>
+        `).join("") : `<tr><td colspan="4" style="text-align:center;color:var(--text-dim);">No model data.</td></tr>`;
+      }
+      if (ta) {
+        ta.innerHTML = accounts.length ? accounts.map(a => `
+          <tr>
+            <td><strong>${escapeHtml(a.name)}</strong></td>
+            <td>${a.requests.toLocaleString()}</td>
+            <td>${a.tokens.toLocaleString()}</td>
+            <td style="color:var(--accent-green);">$${a.cost.toFixed(2)}</td>
+          </tr>
+        `).join("") : `<tr><td colspan="4" style="text-align:center;color:var(--text-dim);">No account data.</td></tr>`;
+      }
+    }
+
+    // REQUEST LOGS SUB-TAB (LOADED DIRECTLY FROM LIVE SQLITE USAGEHISTORY)
+    pagerInit("requestLogs", renderRequestLogsTable, 25);
+    async function loadRequestLogs() {
+      const status = document.getElementById("filterLogStatus").value;
+      const search = document.getElementById("searchLogInput").value.trim();
+      const tbody = document.getElementById("requestLogsTableBody");
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-dim);">Loading request logs...</td></tr>';
+
+      try {
+        const q = new URLSearchParams({ status, search, limit: "250" });
+        const res = await fetch(`/api/usage/request-logs?${q}`);
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+
+        currentRequestLogs = data.logs || [];
+        pagerReset("requestLogs");
+        renderRequestLogsTable();
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="8" style="color: var(--accent-red); text-align: center;">Error: ${e.message}</td></tr>`;
+      }
+    }
+
+    function renderRequestLogsTable() {
+      const tbody = document.getElementById("requestLogsTableBody");
+      if (!currentRequestLogs.length) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-dim);">No request logs found.</td></tr>';
+        renderPager("requestLogs", 0);
+        return;
+      }
+
+      tbody.innerHTML = pagerSlice("requestLogs", currentRequestLogs).map(r => {
+        const time = r.timestamp ? r.timestamp.slice(0, 19).replace("T", " ") : "-";
+        return `
+          <tr>
+            <td style="color: var(--text-dim); font-size: 11px;">${time}</td>
+            <td><span class="tag tag-cyan">${escapeHtml(r.provider)}</span></td>
+            <td><strong>${escapeHtml(r.model)}</strong></td>
+            <td class="mono">${r.promptTokens.toLocaleString()}</td>
+            <td class="mono" style="color: var(--accent-cyan);">${r.cachedTokens ? r.cachedTokens.toLocaleString() : '-'}</td>
+            <td class="mono">${r.completionTokens.toLocaleString()}</td>
+            <td style="color: var(--accent-green);">$${r.cost.toFixed(4)}</td>
+            <td><span class="tag ${r.status === 'ok' ? 'tag-green' : 'tag-red'}">${escapeHtml(r.status || 'ok')}</span></td>
+          </tr>
+        `;
+      }).join("");
+      renderPager("requestLogs", currentRequestLogs.length);
+    }
+
+    async function runDashTester() {
+      const model = document.getElementById("dashTestModel").value.trim();
+      const prompt = document.getElementById("dashTestPrompt").value.trim();
+      const resultEl = document.getElementById("dashTestOutput");
+      const latEl = document.getElementById("testLatBadge");
+
+      latEl.className = "tag tag-amber";
+      latEl.textContent = "WAITING...";
+      resultEl.textContent = "Sending test payload to 9Router :20128...";
+
+      try {
+        const res = await fetch("/api/router/test-prompt", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ model, prompt })
+        });
+        const data = await res.json();
+        latEl.className = data.ok ? "tag tag-green" : "tag tag-red";
+        latEl.textContent = `${data.latency} MS [HTTP ${data.statusCode}]`;
+        resultEl.textContent = JSON.stringify(data.data || data.error, null, 2);
+      } catch (e) {
+        latEl.className = "tag tag-red";
+        latEl.textContent = "ERR";
+        resultEl.textContent = "Ping failed: " + e.message;
+      }
+    }
+
+    // ACCOUNTS
+    async function loadAccounts() {
+      const provider = document.getElementById("filterProvider").value;
+      const status = document.getElementById("filterStatus").value;
+      const search = document.getElementById("searchAccInput").value.trim();
+
+      const tbody = document.getElementById("accountsTableBody");
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-dim);">Loading...</td></tr>';
+
+      try {
+        const q = new URLSearchParams({ provider, status, search, limit: "1000" });
+        const res = await fetch(`/api/db/accounts?${q}`);
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+
+        currentAccounts = data.accounts;
+        pagerReset("accounts");
+        renderAccountsTable();
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="8" style="color: var(--accent-red); text-align: center;">Error: ${e.message}</td></tr>`;
+      }
+    }
+
+    pagerInit("accounts", renderAccountsTable, 25);
+    function renderAccountsTable() {
+      const tbody = document.getElementById("accountsTableBody");
+      if (currentAccounts.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-dim);">No accounts.</td></tr>';
+        renderPager("accounts", 0);
+        return;
+      }
+
+      tbody.innerHTML = pagerSlice("accounts", currentAccounts).map(acc => {
+        const isChecked = selectedIds.has(acc.id) ? "checked" : "";
+        const stateBadge = acc.isActive ? '<span class="tag tag-green">ACTIVE</span>' : '<span class="tag tag-red">DISABLED</span>';
+        let health = '<span class="tag tag-green">HEALTHY</span>';
+        if (acc.hasError) {
+          health = `<span class="tag tag-red" title="${acc.lastError || ''}">ERR: ${acc.errorCode || 'FAIL'}</span>`;
+        }
+
+        const dateStr = acc.updatedAt ? acc.updatedAt.slice(0, 16).replace("T", " ") : "-";
+        const emailOrName = acc.email ? `<strong>${escapeHtml(acc.email)}</strong> <span style="color: var(--text-dim);">(${escapeHtml(acc.name || '')})</span>` : escapeHtml(acc.name || acc.id);
+
+        return `
+          <tr>
+            <td><input type="checkbox" ${isChecked} onchange="toggleSelectAccount('${acc.id}', this.checked)" /></td>
+            <td style="color: var(--text-dim);">${acc.priority || 0}</td>
+            <td><span class="tag tag-cyan">${escapeHtml(acc.provider)}</span></td>
+            <td>${emailOrName}</td>
+            <td>${stateBadge}</td>
+            <td>${health}</td>
+            <td style="color: var(--text-dim);">${dateStr}</td>
+            <td>
+              <div style="display: flex; gap: 4px;">
+                <button onclick="toggleAccountActive('${acc.id}')" class="btn-sm">${acc.isActive ? 'OFF' : 'ON'}</button>
+                <button onclick="resetAccountError('${acc.id}')" class="btn-sm btn-green" title="Reset error cooldown">RST</button>
+                <button onclick="editAccount('${acc.id}')" class="btn-sm">EDIT</button>
+                <button onclick="deleteAccount('${acc.id}')" class="btn-sm btn-red">&times;</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join("");
+      renderPager("accounts", currentAccounts.length);
+    }
+
+    function toggleSelectAccount(id, checked) {
+      if (checked) selectedIds.add(id);
+      else selectedIds.delete(id);
+      updateBulkBar();
+    }
+
+    function toggleSelectAll(checked) {
+      if (checked) currentAccounts.forEach(a => selectedIds.add(a.id));
+      else selectedIds.clear();
+      updateBulkBar();
+      renderAccountsTable();
+    }
+
+    function updateBulkBar() {
+      const bar = document.getElementById("bulkBar");
+      const countEl = document.getElementById("bulkCount");
+      if (selectedIds.size > 0) {
+        bar.style.display = "flex";
+        countEl.textContent = `${selectedIds.size} SELECTED`;
+      } else {
+        bar.style.display = "none";
+      }
+    }
+
+    async function toggleAccountActive(id) {
+      if (!confirm("Confirm modifying Live 9Router account?")) return;
+      try {
+        const res = await fetch(`/api/db/accounts/${id}/toggle`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ confirmLiveWrite: true })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+        loadAccounts();
+      } catch (e) {
+        alert("Toggle err: " + e.message);
+      }
+    }
+
+    async function resetAccountError(id) {
+      if (!confirm("Confirm clearing error/cooldown on Live account?")) return;
+      try {
+        const res = await fetch(`/api/db/accounts/${id}/reset-error`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ confirmLiveWrite: true })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+        loadAccounts();
+      } catch (e) {
+        alert("Reset err: " + e.message);
+      }
+    }
+
+    async function bulkAction(action) {
+      if (selectedIds.size === 0) return;
+      if (!confirm(`Confirm bulk ${action} on Live database?`)) return;
+
+      try {
+        const res = await fetch("/api/db/accounts/bulk-action", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids: Array.from(selectedIds), action, confirmLiveWrite: true })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+        selectedIds.clear();
+        updateBulkBar();
+        loadAccounts();
+      } catch (e) {
+        alert("Bulk err: " + e.message);
+      }
+    }
+
+    async function healAllKiro() {
+      if (!confirm("Confirm healing and reactivating all Kiro accounts in Live DB?")) return;
+      try {
+        const res = await fetch("/api/db/kiro/heal-all", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ confirmLiveWrite: true })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+        alert(data.message);
+        loadAccounts();
+        refreshDashboard();
+      } catch (e) {
+        alert("Heal err: " + e.message);
+      }
+    }
+
+    async function deleteAccount(id) {
+      if (!confirm(`Permanently delete account ${id}?`)) return;
+      try {
+        const res = await fetch(`/api/db/accounts/${id}`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ confirmLiveWrite: true })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+        loadAccounts();
+      } catch (e) {
+        alert("Delete err: " + e.message);
+      }
+    }
+
+    async function exportKiro() {
+      try {
+        const res = await fetch("/api/db/kiro/export");
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+
+        const blob = new Blob([JSON.stringify(data.accounts, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `kiro-accounts-live-${Date.now()}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        alert("Export err: " + e.message);
+      }
+    }
+
+    // ALLOWED MODELS
+    async function loadAllowedModels() {
+      const tbody = document.getElementById("modelsTableBody");
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-dim);">Loading catalog...</td></tr>';
+
+      try {
+        const res = await fetch("/api/models/status");
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+
+        allAllowedModels = data.models;
+        pagerReset("models");
+        const providers = Array.from(new Set(allAllowedModels.map(m => m.provider))).sort();
+        const sel = document.getElementById("filterModelProv");
+        sel.innerHTML = '<option value="all">ALL PROVIDERS</option>' + 
+          providers.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join("");
+
+        renderAllowedModels();
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="7" style="color: var(--accent-red); text-align: center;">Error: ${e.message}</td></tr>`;
+      }
+    }
+
+    pagerInit("models", renderAllowedModels, 25);
+    let modelFilterKey = "";
+    function renderAllowedModels() {
+      const prov = document.getElementById("filterModelProv").value;
+      const allow = document.getElementById("filterModelAllow").value;
+      const s = document.getElementById("searchModelInput").value.trim().toLowerCase();
+      const tbody = document.getElementById("modelsTableBody");
+
+      const fkey = `${prov}|${allow}|${s}`;
+      if (fkey !== modelFilterKey) {
+        modelFilterKey = fkey;
+        pagerReset("models");
+      }
+
+      let filtered = allAllowedModels;
+      if (prov !== "all") filtered = filtered.filter(m => m.provider === prov);
+      if (allow === "allowed") filtered = filtered.filter(m => m.isAllowed);
+      if (allow === "disabled") filtered = filtered.filter(m => !m.isAllowed);
+      if (s) filtered = filtered.filter(m => m.id.toLowerCase().includes(s) || m.name.toLowerCase().includes(s));
+
+      const slice = pagerSlice("models", filtered);
+      if (slice.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-dim);">No models matched.</td></tr>';
+        renderPager("models", filtered.length);
+        return;
+      }
+
+      tbody.innerHTML = slice.map(m => `
+        <tr>
+          <td><span class="tag tag-cyan">${escapeHtml(m.provider)}</span></td>
+          <td><strong>${escapeHtml(m.id)}</strong></td>
+          <td style="color: var(--text-muted);">${escapeHtml(m.name)}</td>
+          <td><span class="tag">${escapeHtml(m.type)}</span></td>
+          <td style="color: var(--text-dim);">${m.contextWindow ? m.contextWindow.toLocaleString() : '-'}</td>
+          <td>${m.isAllowed ? '<span class="tag tag-green">ALLOWED</span>' : '<span class="tag tag-red">DISABLED</span>'}</td>
+          <td>
+            <button onclick="toggleModelAllow('${escapeHtml(m.provider)}', '${escapeHtml(m.id)}', ${!m.isAllowed})" class="btn-sm ${m.isAllowed ? 'btn-red' : 'btn-green'}">
+              ${m.isAllowed ? 'BLOCK' : 'ALLOW'}
+            </button>
+          </td>
+        </tr>
+      `).join("");
+      renderPager("models", filtered.length);
+    }
+
+    async function toggleModelAllow(provider, modelId, newAllowed) {
+      if (!confirm("Confirm modifying allowed model state?")) return;
+      try {
+        const res = await fetch("/api/models/toggle-allow", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ provider, modelId, allowed: newAllowed, confirmLiveWrite: true })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+
+        const m = allAllowedModels.find(x => x.provider === provider && x.id === modelId);
+        if (m) m.isAllowed = newAllowed;
+        renderAllowedModels();
+      } catch (e) {
+        alert("Toggle model err: " + e.message);
+      }
+    }
+
+    // CUSTOM MODELS
+    async function loadCustomModels() {
+      const tbody = document.getElementById("customTableBody");
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-dim);">Loading...</td></tr>';
+
+      try {
+        const res = await fetch("/api/models/custom");
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+
+        document.getElementById("customCountTag").textContent = data.count;
+        if (data.models.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-dim);">No custom models defined.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = data.models.map(m => `
+          <tr>
+            <td><span class="tag tag-cyan">${escapeHtml(m.providerAlias || '-')}</span></td>
+            <td><strong>${escapeHtml(m.id)}</strong></td>
+            <td style="color: var(--text-muted);">${escapeHtml(m.name || m.id)}</td>
+            <td><span class="tag">${escapeHtml(m.type || 'llm')}</span></td>
+            <td>
+              <button onclick="deleteCustomModel('${escapeHtml(m.key)}')" class="btn-sm btn-red">&times; DEL</button>
+            </td>
+          </tr>
+        `).join("");
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="5" style="color: var(--accent-red); text-align: center;">Error: ${e.message}</td></tr>`;
+      }
+    }
+
+    async function deleteCustomModel(key) {
+      if (!confirm(`Delete custom model ${key}?`)) return;
+      try {
+        const res = await fetch("/api/models/custom", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key, confirmLiveWrite: true })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+        loadCustomModels();
+      } catch (e) {
+        alert("Delete err: " + e.message);
+      }
+    }
+
+    function openNewCustomModelModal() {
+      document.getElementById("customProv").value = "";
+      document.getElementById("customId").value = "";
+      document.getElementById("customName").value = "";
+      openModal("customModelModal");
+    }
+
+    async function submitCustomModel() {
+      const providerAlias = document.getElementById("customProv").value.trim();
+      const id = document.getElementById("customId").value.trim();
+      const name = document.getElementById("customName").value.trim();
+      if (!providerAlias || !id) return alert("Provider alias and ID required");
+
+      try {
+        const res = await fetch("/api/models/custom", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ providerAlias, id, name, confirmLiveWrite: true })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+        closeModal("customModelModal");
+        loadCustomModels();
+      } catch (e) {
+        alert("Save err: " + e.message);
+      }
+    }
+
+    // MEMBERS & QUOTAS
+    pagerInit("members", renderMembersTable, 25);
+    function renderMembersTable() {
+      const tbodyM = document.getElementById("membersTableBody");
+      tbodyM.innerHTML = pagerSlice("members", currentMembers).map(m => `
+          <tr>
+            <td><strong>${escapeHtml(m.name)}</strong></td>
+            <td><code style="color: var(--accent-cyan);">${escapeHtml(m.key.slice(0, 16))}...</code></td>
+            <td style="color: var(--text-dim);">${escapeHtml(m.machineId || '-')}</td>
+            <td>${m.isActive ? '<span class="tag tag-green">ACTIVE</span>' : '<span class="tag tag-red">REVOKED</span>'}</td>
+            <td>${m.reqs.toLocaleString()}</td>
+            <td>${m.totalTokens.toLocaleString()}</td>
+            <td style="color: var(--accent-green);">$${m.totalCost.toFixed(4)}</td>
+            <td>
+              <button onclick="toggleMember('${m.id}')" class="btn-sm">${m.isActive ? 'REVOKE' : 'ENABLE'}</button>
+              <button onclick="deleteMember('${m.id}')" class="btn-sm btn-red">&times;</button>
+            </td>
+          </tr>
+        `).join("");
+      renderPager("members", currentMembers.length);
+    }
+    async function loadMembers() {
+      const tbodyM = document.getElementById("membersTableBody");
+      const tbodyQ = document.getElementById("quotasTableBody");
+      tbodyM.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-dim);">Loading...</td></tr>';
+      tbodyQ.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-dim);">Loading...</td></tr>';
+
+      try {
+        const res = await fetch("/api/members");
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+
+        currentMembers = data.members;
+        pagerReset("members");
+        renderMembersTable();
+
+        tbodyQ.innerHTML = currentMembers.map(m => {
+          const maxT = m.quota?.maxTokens || 10000000;
+          const pct = Math.min(100, Math.round((m.totalTokens / maxT) * 100));
+          return `
+            <tr>
+              <td><strong>${escapeHtml(m.name)}</strong></td>
+              <td><span class="tag tag-cyan">${escapeHtml(m.quota?.plan || 'Standard')}</span></td>
+              <td style="min-width: 200px;">
+                <div style="display: flex; justify-content: space-between; font-size: 10px; margin-bottom: 3px;">
+                  <span>${m.totalTokens.toLocaleString()}</span>
+                  <span style="color: var(--text-dim);">${pct}% of ${maxT.toLocaleString()}</span>
+                </div>
+                <div class="progress-bar"><div class="progress-fill" style="width: ${pct}%;"></div></div>
+              </td>
+              <td>$${m.totalCost.toFixed(2)} / $${(m.quota?.maxCost || 50).toFixed(2)}</td>
+              <td style="color: var(--accent-green);">$${(m.quota?.balance || 0).toFixed(2)}</td>
+              <td>
+                <button onclick="openQuotaModal('${m.id}')" class="btn-sm">EDIT LIMITS</button>
+              </td>
+            </tr>
+          `;
+        }).join("");
+      } catch (e) {
+        tbodyM.innerHTML = `<tr><td colspan="8" style="color: var(--accent-red); text-align: center;">Error: ${e.message}</td></tr>`;
+      }
+    }
+
+    function openNewMemberModal() {
+      document.getElementById("modalMemName").value = "";
+      openModal("memberModal");
+    }
+
+    async function submitNewMember() {
+      const name = document.getElementById("modalMemName").value.trim();
+      const plan = document.getElementById("modalMemPlan").value;
+      const maxTokens = parseInt(document.getElementById("modalMemTokens").value, 10) || 5000000;
+      const maxCost = parseFloat(document.getElementById("modalMemCost").value) || 50;
+
+      try {
+        const res = await fetch("/api/members", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, plan, maxTokens, maxCost, confirmLiveWrite: true })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+        alert(`API Key Generated:\n\n${data.key}`);
+        closeModal("memberModal");
+        loadMembers();
+      } catch (e) {
+        alert("Create member err: " + e.message);
+      }
+    }
+
+    async function toggleMember(id) {
+      try {
+        const res = await fetch(`/api/members/${id}/toggle`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ confirmLiveWrite: true })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+        loadMembers();
+      } catch (e) {
+        alert("Toggle member err: " + e.message);
+      }
+    }
+
+    async function deleteMember(id) {
+      if (!confirm("Delete member API key?")) return;
+      try {
+        const res = await fetch(`/api/members/${id}`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ confirmLiveWrite: true })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+        loadMembers();
+      } catch (e) {
+        alert("Delete member err: " + e.message);
+      }
+    }
+
+    function openQuotaModal(id) {
+      const m = currentMembers.find(x => x.id === id);
+      if (!m) return;
+      document.getElementById("quotaMemId").value = id;
+      document.getElementById("quotaPlan").value = m.quota?.plan || "Standard";
+      document.getElementById("quotaMaxTokens").value = m.quota?.maxTokens || 10000000;
+      document.getElementById("quotaMaxCost").value = m.quota?.maxCost || 50;
+      document.getElementById("quotaBalance").value = m.quota?.balance || 0;
+      openModal("quotaModal");
+    }
+
+    async function submitQuotaConfig() {
+      const id = document.getElementById("quotaMemId").value;
+      const plan = document.getElementById("quotaPlan").value.trim();
+      const maxTokens = parseInt(document.getElementById("quotaMaxTokens").value, 10) || 10000000;
+      const maxCost = parseFloat(document.getElementById("quotaMaxCost").value) || 50;
+      const balance = parseFloat(document.getElementById("quotaBalance").value) || 0;
+
+      try {
+        const res = await fetch(`/api/members/${id}/quota`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ plan, maxTokens, maxCost, balance, confirmLiveWrite: true })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+        closeModal("quotaModal");
+        loadMembers();
+      } catch (e) {
+        alert("Quota update err: " + e.message);
+      }
+    }
+
+    // PRICING
+    async function loadPricing() {
+      const tbody = document.getElementById("pricingTableBody");
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-dim);">Loading...</td></tr>';
+
+      try {
+        const res = await fetch("/api/pricing");
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+
+        const keys = Object.keys(data.pricing || {});
+        if (keys.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-dim);">Default upstream pricing active.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = keys.map(k => {
+          const r = data.pricing[k];
+          return `
+            <tr>
+              <td><strong>${escapeHtml(k)}</strong></td>
+              <td style="color: var(--accent-green);">$${(r.inputPrice || r.prompt || 0).toFixed(4)}</td>
+              <td style="color: var(--accent-green);">$${(r.outputPrice || r.completion || 0).toFixed(4)}</td>
+              <td style="color: var(--text-dim);">$${(r.cachedPrice || 0).toFixed(4)}</td>
+              <td><span class="tag tag-green">OVERRIDE</span></td>
+            </tr>
+          `;
+        }).join("");
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="5" style="color: var(--accent-red); text-align: center;">Error: ${e.message}</td></tr>`;
+      }
+    }
+
+    function openNewPricingModal() {
+      document.getElementById("priceKey").value = "";
+      openModal("pricingModal");
+    }
+
+    async function submitPricing() {
+      const modelKey = document.getElementById("priceKey").value.trim();
+      const inputPrice = parseFloat(document.getElementById("priceIn").value) || 0;
+      const outputPrice = parseFloat(document.getElementById("priceOut").value) || 0;
+
+      try {
+        const res = await fetch("/api/pricing", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ modelKey, rates: { inputPrice, outputPrice }, confirmLiveWrite: true })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+        closeModal("pricingModal");
+        loadPricing();
+      } catch (e) {
+        alert("Pricing err: " + e.message);
+      }
+    }
+
+    // ERRORS
+    async function loadErrors() {
+      const tbody = document.getElementById("errorsTableBody");
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-dim);">Loading...</td></tr>';
+
+      try {
+        const res = await fetch("/api/db/errors");
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+
+        if (data.errors.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--accent-green);">No errors recorded. All systems green!</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = data.errors.map(e => `
+          <tr>
+            <td style="color: var(--text-dim);">${e.timestamp ? e.timestamp.slice(0, 19).replace("T", " ") : '-'}</td>
+            <td><span class="tag tag-cyan">${escapeHtml(e.provider || '-')}</span></td>
+            <td><strong>${escapeHtml(e.model || '-')}</strong></td>
+            <td><span class="tag tag-red">${escapeHtml(e.status || 'ERR')}</span></td>
+            <td><pre style="font-size: 10px; max-height: 60px; overflow: auto; background: #ffffff; padding: 4px; border: 1px solid var(--border);">${escapeHtml(JSON.stringify(e.errorSnippet, null, 2))}</pre></td>
+          </tr>
+        `).join("");
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="5" style="color: var(--accent-red); text-align: center;">Error: ${e.message}</td></tr>`;
+      }
+    }
+
+    // SETTINGS
+    async function loadSettings() {
+      loadBackups();
+      try {
+        const res = await fetch("/api/settings");
+        const data = await res.json();
+        if (data.ok && data.settings) {
+          document.getElementById("cfgRequireApiKey").value = data.settings.requireApiKey ? "true" : "false";
+          document.getElementById("cfgRequireLogin").value = data.settings.requireLogin ? "true" : "false";
+          document.getElementById("cfgRecaptchaSiteKey").value = data.settings.recaptchaSiteKey || "";
+          document.getElementById("cfgRecaptchaSecretKey").value = data.settings.recaptchaSecretKey || "";
+        }
+      } catch (e) {
+        console.error("Settings err:", e);
+      }
+    }
+
+    async function saveRouterSettings() {
+      const settings = {
+        requireApiKey: document.getElementById("cfgRequireApiKey").value === "true",
+        requireLogin: document.getElementById("cfgRequireLogin").value === "true",
+        recaptchaSiteKey: document.getElementById("cfgRecaptchaSiteKey").value.trim(),
+        recaptchaSecretKey: document.getElementById("cfgRecaptchaSecretKey").value.trim()
+      };
+
+      try {
+        const res = await fetch("/api/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ settings, confirmLiveWrite: true })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+        alert("Settings saved successfully.");
+      } catch (e) {
+        alert("Settings err: " + e.message);
+      }
+    }
+
+    async function loadBackups() {
+      const tbody = document.getElementById("backupsTableBody");
+      tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-dim);">Loading...</td></tr>';
+
+      try {
+        const res = await fetch("/api/db/backups");
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+
+        if (data.backups.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-dim);">No backup files.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = data.backups.map(b => `
+          <tr>
+            <td><strong>${escapeHtml(b.filename)}</strong></td>
+            <td>${(b.size / (1024 * 1024)).toFixed(2)} MB</td>
+            <td style="color: var(--text-dim);">${new Date(b.mtime).toLocaleString()}</td>
+          </tr>
+        `).join("");
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="3" style="color: var(--accent-red); text-align: center;">Error: ${e.message}</td></tr>`;
+      }
+    }
+
+    async function backupCurrentDb() {
+      try {
+        const res = await fetch("/api/db/backup", { method: "POST" });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+        alert(`Backup saved: ${data.backup.filename}`);
+        loadBackups();
+      } catch (e) {
+        alert("Backup err: " + e.message);
+      }
+    }
+
+    // PROXY POOLS
+    let currentProxies = [];
+    pagerInit("proxies", renderProxyTable, 25);
+    function maskProxyUrl(url) {
+      return String(url || "").replace(/(^[a-z0-9+.-]+:\/\/[^:/@]+:)[^@/]+(@)/i, "$1***$2");
+    }
+    async function loadProxies() {
+      const status = document.getElementById("filterProxyStatus").value;
+      const search = document.getElementById("searchProxyInput").value.trim();
+      const tbody = document.getElementById("proxyTableBody");
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-dim);">Loading...</td></tr>';
+      try {
+        const q = new URLSearchParams({ status, search, limit: "1000" });
+        const res = await fetch(`/api/proxy-pools?${q}`);
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+        currentProxies = data.pools;
+        document.getElementById("sbProxyCount").textContent = data.total;
+        pagerReset("proxies");
+        renderProxyTable();
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="7" style="color: var(--accent-red); text-align: center;">Error: ${e.message}</td></tr>`;
+      }
+    }
+    function renderProxyTable() {
+      const tbody = document.getElementById("proxyTableBody");
+      if (!currentProxies.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-dim);">No proxy pools.</td></tr>';
+        renderPager("proxies", 0);
+        return;
+      }
+      tbody.innerHTML = pagerSlice("proxies", currentProxies).map(p => {
+        const testBadge = p.testStatus === "active"
+          ? '<span class="tag tag-green">OK</span>'
+          : p.testStatus === "error"
+            ? `<span class="tag tag-red" title="${escapeHtml(p.lastError || "")}">FAIL</span>`
+            : '<span class="tag">UNKNOWN</span>';
+        const checked = p.lastTestedAt ? p.lastTestedAt.slice(0, 16).replace("T", " ") : "-";
+        return `
+          <tr>
+            <td><strong>${escapeHtml(p.name)}</strong><div style="font-size:10px;color:var(--text-dim);">${escapeHtml(p.id.slice(0, 8))}</div></td>
+            <td><code style="font-size:11px;">${escapeHtml(maskProxyUrl(p.proxyUrl))}</code></td>
+            <td><span class="tag tag-cyan">${escapeHtml(p.type)}</span></td>
+            <td>${p.isActive ? '<span class="tag tag-green">ACTIVE</span>' : '<span class="tag tag-red">OFF</span>'}</td>
+            <td>${testBadge}</td>
+            <td style="color: var(--text-dim);">${checked}</td>
+            <td>
+              <div style="display: flex; gap: 4px;">
+                <button onclick="toggleProxy('${p.id}')" class="btn-sm">${p.isActive ? "OFF" : "ON"}</button>
+                <button onclick="editProxy('${p.id}')" class="btn-sm">EDIT</button>
+                <button onclick="deleteProxy('${p.id}')" class="btn-sm btn-red">&times;</button>
+              </div>
+            </td>
+          </tr>`;
+      }).join("");
+      renderPager("proxies", currentProxies.length);
+    }
+    async function toggleProxy(id) {
+      try {
+        const res = await fetch(`/api/proxy-pools/${id}/toggle`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ confirmLiveWrite: true })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+        loadProxies();
+      } catch (e) {
+        alert("Toggle proxy err: " + e.message);
+      }
+    }
+    async function deleteProxy(id) {
+      if (!confirm("Delete this proxy pool?")) return;
+      try {
+        const res = await fetch(`/api/proxy-pools/${id}`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ confirmLiveWrite: true })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+        loadProxies();
+      } catch (e) {
+        alert("Delete proxy err: " + e.message);
+      }
+    }
+    function openNewProxyModal() {
+      document.getElementById("modalProxyTitle").textContent = "ADD PROXY";
+      document.getElementById("modalProxyId").value = "";
+      document.getElementById("modalProxyName").value = "";
+      document.getElementById("modalProxyUrl").value = "";
+      document.getElementById("modalProxyNoProxy").value = "";
+      document.getElementById("modalProxyType").value = "http";
+      openModal("proxyModal");
+    }
+    function editProxy(id) {
+      const p = currentProxies.find(x => x.id === id);
+      if (!p) return;
+      // ambil URL penuh dari server agar kredensial tidak hilang saat edit
+      document.getElementById("modalProxyTitle").textContent = "EDIT PROXY";
+      document.getElementById("modalProxyId").value = p.id;
+      document.getElementById("modalProxyName").value = p.name || "";
+      document.getElementById("modalProxyUrl").value = p.proxyUrl || "";
+      document.getElementById("modalProxyNoProxy").value = p.noProxy || "";
+      document.getElementById("modalProxyType").value = p.type || "http";
+      openModal("proxyModal");
+    }
+    async function submitProxyModal() {
+      const id = document.getElementById("modalProxyId").value;
+      const payload = {
+        name: document.getElementById("modalProxyName").value.trim(),
+        proxyUrl: document.getElementById("modalProxyUrl").value.trim(),
+        noProxy: document.getElementById("modalProxyNoProxy").value.trim(),
+        type: document.getElementById("modalProxyType").value,
+        confirmLiveWrite: true
+      };
+      if (!payload.proxyUrl) return alert("Proxy URL is required");
+      try {
+        const res = await fetch(id ? `/api/proxy-pools/${id}` : "/api/proxy-pools", {
+          method: id ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+        closeModal("proxyModal");
+        loadProxies();
+      } catch (e) {
+        alert("Save proxy err: " + e.message);
+      }
+    }
+
+    // PROVIDER NODES
+    let currentProviders = [];
+    pagerInit("providers", renderProviderTable, 25);
+    async function loadProviderNodes() {
+      const tbody = document.getElementById("providerTableBody");
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-dim);">Loading...</td></tr>';
+      try {
+        const res = await fetch("/api/providers/nodes");
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+        currentProviders = data.nodes;
+        document.getElementById("provCountTag").textContent = `${data.count} nodes`;
+        document.getElementById("sbProvCount").textContent = data.count;
+        pagerReset("providers");
+        renderProviderTable();
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="7" style="color: var(--accent-red); text-align: center;">Error: ${e.message}</td></tr>`;
+      }
+    }
+    function renderProviderTable() {
+      const tbody = document.getElementById("providerTableBody");
+      if (!currentProviders.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-dim);">No providers.</td></tr>';
+        renderPager("providers", 0);
+        return;
+      }
+      tbody.innerHTML = pagerSlice("providers", currentProviders).map(n => {
+        const editable = n.type !== "builtin";
+        return `
+          <tr>
+            <td><strong>${escapeHtml(n.name)}</strong>${n.type === "builtin" ? ' <span class="tag">BUILTIN</span>' : ""}</td>
+            <td><code style="font-size:10px;">${escapeHtml(n.id.slice(0, 26))}${n.id.length > 26 ? "…" : ""}</code></td>
+            <td><span class="tag tag-cyan">${escapeHtml(n.type)}</span></td>
+            <td><code>${escapeHtml(n.prefix)}</code></td>
+            <td style="font-size:11px;">${escapeHtml(n.baseUrl)}</td>
+            <td><span class="tag ${n.accountActive ? "tag-green" : ""}">${n.accountActive}/${n.accountCount} ON</span></td>
+            <td>
+              ${editable ? `<div style="display: flex; gap: 4px;">
+                <button onclick="editProvider('${encodeURIComponent(n.id)}')" class="btn-sm">EDIT</button>
+                <button onclick="deleteProvider('${encodeURIComponent(n.id)}')" class="btn-sm btn-red">&times;</button>
+              </div>` : '<span style="font-size:10px;color:var(--text-dim);">managed by 9router</span>'}
+            </td>
+          </tr>`;
+      }).join("");
+      renderPager("providers", currentProviders.length);
+    }
+    function openNewProviderModal() {
+      document.getElementById("modalProvTitle").textContent = "ADD PROVIDER";
+      document.getElementById("modalProvId").value = "";
+      document.getElementById("modalProvName").value = "";
+      document.getElementById("modalProvType").value = "openai-compatible";
+      document.getElementById("modalProvPrefix").value = "";
+      document.getElementById("modalProvApiType").value = "chat";
+      document.getElementById("modalProvBaseUrl").value = "";
+      openModal("providerModal");
+    }
+    function editProvider(encId) {
+      const id = decodeURIComponent(encId);
+      const n = currentProviders.find(x => x.id === id);
+      if (!n) return;
+      document.getElementById("modalProvTitle").textContent = "EDIT PROVIDER";
+      document.getElementById("modalProvId").value = n.id;
+      document.getElementById("modalProvName").value = n.name || "";
+      document.getElementById("modalProvType").value = n.type || "openai-compatible";
+      document.getElementById("modalProvPrefix").value = n.prefix || "";
+      document.getElementById("modalProvApiType").value = n.apiType || "chat";
+      document.getElementById("modalProvBaseUrl").value = n.baseUrl || "";
+      openModal("providerModal");
+    }
+    async function submitProviderModal() {
+      const id = document.getElementById("modalProvId").value;
+      const payload = {
+        name: document.getElementById("modalProvName").value.trim(),
+        type: document.getElementById("modalProvType").value,
+        prefix: document.getElementById("modalProvPrefix").value.trim(),
+        apiType: document.getElementById("modalProvApiType").value.trim() || "chat",
+        baseUrl: document.getElementById("modalProvBaseUrl").value.trim(),
+        confirmLiveWrite: true
+      };
+      if (!payload.name) return alert("Name is required");
+      try {
+        const res = await fetch(id ? `/api/providers/nodes/${encodeURIComponent(id)}` : "/api/providers/nodes", {
+          method: id ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+        closeModal("providerModal");
+        loadProviderNodes();
+      } catch (e) {
+        alert("Save provider err: " + e.message);
+      }
+    }
+    async function deleteProvider(encId) {
+      const id = decodeURIComponent(encId);
+      if (!confirm(`Delete provider node "${id}"?`)) return;
+      try {
+        const res = await fetch(`/api/providers/nodes/${encodeURIComponent(id)}`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ confirmLiveWrite: true })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+        loadProviderNodes();
+      } catch (e) {
+        alert("Delete provider err: " + e.message);
+      }
+    }
+
+    // MODAL HELPERS
+    function openModal(id) { document.getElementById(id).style.display = "flex"; }
+    function closeModal(id) { document.getElementById(id).style.display = "none"; }
+
+    function openNewAccountModal() {
+      document.getElementById("modalAccTitle").textContent = "NEW PROVIDER ACCOUNT";
+      document.getElementById("modalAccId").value = "";
+      document.getElementById("modalAccProvider").value = document.getElementById("filterProvider").value === "all" ? "kiro" : document.getElementById("filterProvider").value;
+      document.getElementById("modalAccName").value = "";
+      document.getElementById("modalAccEmail").value = "";
+      document.getElementById("modalAccPriority").value = "1";
+      document.getElementById("modalAccIsActive").value = "true";
+      document.getElementById("modalAccData").value = JSON.stringify({
+        accessToken: "",
+        refreshToken: "",
+        expiresAt: new Date(Date.now() + 86400000).toISOString(),
+        testStatus: "active"
+      }, null, 2);
+      openModal("accountModal");
+    }
+
+    function editAccount(id) {
+      const acc = currentAccounts.find(a => a.id === id);
+      if (!acc) return;
+      document.getElementById("modalAccTitle").textContent = `EDIT ACCOUNT: ${acc.name || acc.id}`;
+      document.getElementById("modalAccId").value = acc.id;
+      document.getElementById("modalAccProvider").value = acc.provider;
+      document.getElementById("modalAccName").value = acc.name || "";
+      document.getElementById("modalAccEmail").value = acc.email || "";
+      document.getElementById("modalAccPriority").value = acc.priority || 1;
+      document.getElementById("modalAccIsActive").value = acc.isActive ? "true" : "false";
+      document.getElementById("modalAccData").value = JSON.stringify(acc.data || {}, null, 2);
+      openModal("accountModal");
+    }
+
+    async function saveAccountModal() {
+      const id = document.getElementById("modalAccId").value;
+      const provider = document.getElementById("modalAccProvider").value.trim();
+      const name = document.getElementById("modalAccName").value.trim();
+      const email = document.getElementById("modalAccEmail").value.trim();
+      const priority = parseInt(document.getElementById("modalAccPriority").value, 10) || 1;
+      const isActive = document.getElementById("modalAccIsActive").value === "true";
+
+      let data = {};
+      try {
+        data = JSON.parse(document.getElementById("modalAccData").value || "{}");
+      } catch {
+        return alert("JSON payload invalid");
+      }
+
+      const payload = { provider, name, email, priority, isActive, data, confirmLiveWrite: true };
+      try {
+        const url = id ? `/api/db/accounts/${id}` : "/api/db/accounts";
+        const method = id ? "PUT" : "POST";
+        const res = await fetch(url, {
+          method,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const resData = await res.json();
+        if (!resData.ok) throw new Error(resData.error);
+        closeModal("accountModal");
+        loadAccounts();
+        refreshDashboard();
+      } catch (e) {
+        alert("Save err: " + e.message);
+      }
+    }
+
+    function openImportModal() {
+      document.getElementById("importJsonText").value = "";
+      openModal("importModal");
+    }
+
+    async function submitBulkImport() {
+      const raw = document.getElementById("importJsonText").value.trim();
+      let accounts = [];
+      try {
+        accounts = JSON.parse(raw);
+        if (!Array.isArray(accounts)) throw new Error("Must be JSON array");
+      } catch (e) {
+        return alert("Invalid JSON: " + e.message);
+      }
+
+      try {
+        const res = await fetch("/api/db/kiro/bulk-import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ accounts, confirmLiveWrite: true })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+        alert(data.message);
+        closeModal("importModal");
+        loadAccounts();
+        refreshDashboard();
+      } catch (e) {
+        alert("Import err: " + e.message);
+      }
+    }
+
+    function debounce(fn, ms) {
+      let t;
+      return function(...args) {
+        clearTimeout(t);
+        t = setTimeout(() => fn.apply(this, args), ms);
+      };
+    }
+
+    function escapeHtml(str) {
+      if (!str) return "";
+      return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+
+    // INIT
+    initBarsTrack();
+    checkInstance();
+    refreshDashboard();
+    loadUsagePeriod();
+    startLiveStream();
+    startLivePoller();
+    setInterval(checkInstance, 5000);
+  </script>
+</body>
+</html>

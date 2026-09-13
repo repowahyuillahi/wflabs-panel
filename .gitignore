@@ -1,0 +1,11 @@
+node_modules/
+dev-9router-data/
+backups/
+*.sqlite
+*.sqlite-*
+.env
+.env.*
+.DS_Store
+*.log
+dist/
+admin-panel/dist/
