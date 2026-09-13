@@ -6,7 +6,7 @@ const { execSync } = require("node:child_process");
 const { DatabaseSync } = require("node:sqlite");
 
 const PANEL_PORT = parseInt(process.env.PANEL_PORT || "20110", 10);
-const PANEL_HOST = "127.0.0.1";
+const PANEL_HOST = process.env.PANEL_HOST || "0.0.0.0";
 
 const LIVE_PORT = 20128;
 const LIVE_URL = `http://127.0.0.1:${LIVE_PORT}`;
