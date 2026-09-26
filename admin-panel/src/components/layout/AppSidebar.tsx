@@ -1,26 +1,15 @@
 import React from "react";
+import { MaterialIcon } from "@/components/ui/material-icon";
 import {
-  Gauge,
-  KeyRound,
-  Radio,
-  Workflow,
-  Sparkles,
-  Boxes,
-  Users2,
-  SlidersHorizontal,
-  CircleDollarSign,
-  AlertTriangle,
-  Sliders,
-  ExternalLink,
   ChevronRight,
-  BookOpen,
-  Activity,
+  ExternalLink,
 } from "lucide-react";
 import { cn, formatBytes } from "@/lib/utils";
 import { LiveInstanceResponse } from "@/lib/api";
 
 export type AdminRoute =
   | "dashboard"
+  | "usage"
   | "accounts"
   | "providers"
   | "proxies"
@@ -30,6 +19,7 @@ export type AdminRoute =
   | "quotas"
   | "pricing"
   | "errors"
+  | "console"
   | "settings"
   | "docs";
 
@@ -57,43 +47,34 @@ export function AppSidebar({ currentRoute, onRouteChange, live }: AppSidebarProp
     {
       group: "Overview & Telemetry",
       items: [
-        { id: "dashboard", label: "Dashboard", icon: <Gauge className="w-4 h-4 stroke-[1.75]" /> },
-        { id: "errors", label: "Error Stream", icon: <AlertTriangle className="w-4 h-4 stroke-[1.75]" /> },
+        { id: "dashboard", label: "Dashboard", icon: <MaterialIcon name="dashboard" size={17} /> },
+        { id: "usage", label: "Usage & Analytics", icon: <MaterialIcon name="bar_chart" size={17} /> },
+        { id: "console", label: "Console Log", icon: <MaterialIcon name="terminal" size={17} /> },
       ],
     },
     {
-      group: "Upstream & Routing",
+      group: "Gateway Database",
       items: [
-        { id: "accounts", label: "Key Management", icon: <KeyRound className="w-4 h-4 stroke-[1.75]" /> },
-        { id: "providers", label: "Providers", icon: <Radio className="w-4 h-4 stroke-[1.75]" /> },
-        { id: "proxies", label: "Proxy Pools", icon: <Workflow className="w-4 h-4 stroke-[1.75]" /> },
+        { id: "accounts", label: "Key Management", icon: <MaterialIcon name="key" size={17} /> },
+        { id: "providers", label: "Providers (Nodes)", icon: <MaterialIcon name="hub" size={17} /> },
+        { id: "proxies", label: "Proxy Pools", icon: <MaterialIcon name="alt_route" size={17} /> },
+        { id: "models", label: "Model Catalog", icon: <MaterialIcon name="psychology" size={17} /> },
+        { id: "custom", label: "Custom Mapping", icon: <MaterialIcon name="view_in_ar" size={17} /> },
       ],
     },
     {
-      group: "Models & Mappings",
+      group: "Commercial & Members",
       items: [
-        { id: "models", label: "Allowed Models", icon: <Sparkles className="w-4 h-4 stroke-[1.75]" /> },
-        { id: "custom", label: "Custom Models", icon: <Boxes className="w-4 h-4 stroke-[1.75]" /> },
+        { id: "members", label: "Members & API Keys", icon: <MaterialIcon name="group" size={17} /> },
+        { id: "quotas", label: "Quotas & CD Keys", icon: <MaterialIcon name="confirmation_number" size={17} /> },
+        { id: "pricing", label: "Pricing & Margins", icon: <MaterialIcon name="monetization_on" size={17} /> },
       ],
     },
     {
-      group: "Consumers & Billing",
+      group: "Diagnostics & System",
       items: [
-        { id: "members", label: "Members & Keys", icon: <Users2 className="w-4 h-4 stroke-[1.75]" /> },
-        { id: "quotas", label: "Quota Limits", icon: <SlidersHorizontal className="w-4 h-4 stroke-[1.75]" /> },
-        { id: "pricing", label: "Pricing Matrix", icon: <CircleDollarSign className="w-4 h-4 stroke-[1.75]" /> },
-      ],
-    },
-    {
-      group: "Documentation & API",
-      items: [
-        { id: "docs", label: "Quickstart & Docs", icon: <BookOpen className="w-4 h-4 stroke-[1.75]" /> },
-      ],
-    },
-    {
-      group: "Configuration",
-      items: [
-        { id: "settings", label: "Settings & Backup", icon: <Sliders className="w-4 h-4 stroke-[1.75]" /> },
+        { id: "errors", label: "Error Logs", icon: <MaterialIcon name="warning" size={17} /> },
+        { id: "settings", label: "Gateway Settings", icon: <MaterialIcon name="settings" size={17} /> },
       ],
     },
   ];
@@ -182,6 +163,21 @@ export function AppSidebar({ currentRoute, onRouteChange, live }: AppSidebarProp
             External Portals
           </div>
           <a
+            href="http://127.0.0.1:20128"
+            target="_blank"
+            rel="noreferrer"
+            className="w-full flex items-center justify-between px-3 py-1.5 rounded-md text-xs font-medium text-sidebar-foreground/75 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-all group"
+          >
+            <div className="flex items-center gap-2.5">
+              <MaterialIcon name="troubleshoot" size={17} className="text-amber-600 dark:text-amber-400" />
+              <span>9Router Gateway</span>
+            </div>
+            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400">
+              :20128
+            </span>
+          </a>
+
+          <a
             href="/member"
             target="_blank"
             rel="noreferrer"
@@ -203,7 +199,7 @@ export function AppSidebar({ currentRoute, onRouteChange, live }: AppSidebarProp
             className="w-full flex items-center justify-between px-3 py-1.5 rounded-md text-xs font-medium text-sidebar-foreground/75 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-all group"
           >
             <div className="flex items-center gap-2.5">
-              <Activity className="w-4 h-4 text-emerald-600 dark:text-emerald-400 stroke-[1.75]" />
+              <MaterialIcon name="pulse" size={17} className="text-emerald-600 dark:text-emerald-400" />
               <span>System Status</span>
             </div>
             <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">

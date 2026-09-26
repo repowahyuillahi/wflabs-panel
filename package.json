@@ -9,7 +9,7 @@
     "build:admin": "npm run build --prefix admin-panel",
     "build": "npm run build:admin",
     "dev:admin": "npm run dev --prefix admin-panel",
-    "test": "node test/self-check.js"
+    "test": "node test/self-check.js && node --test test/wire-helpers.test.js"
   },
   "keywords": [
     "9router",

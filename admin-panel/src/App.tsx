@@ -3,6 +3,7 @@ import { AppSidebar, AdminRoute } from "@/components/layout/AppSidebar";
 import { TopNav } from "@/components/layout/TopNav";
 import { useLiveStat } from "@/hooks/use-live-stat";
 import { DashboardView } from "@/views/admin/DashboardView";
+import { UsageView } from "@/views/admin/UsageView";
 import { AccountsView } from "@/views/admin/AccountsView";
 import { ProvidersView } from "@/views/admin/ProvidersView";
 import { ProxiesView } from "@/views/admin/ProxiesView";
@@ -12,6 +13,7 @@ import { MembersView } from "@/views/admin/MembersView";
 import { QuotasView } from "@/views/admin/QuotasView";
 import { PricingView } from "@/views/admin/PricingView";
 import { ErrorsView } from "@/views/admin/ErrorsView";
+import { ConsoleLogView } from "@/views/admin/ConsoleLogView";
 import { SettingsView } from "@/views/admin/SettingsView";
 import { DocsView } from "@/views/docs/DocsView";
 import { StatusView } from "@/views/status/StatusView";
@@ -88,6 +90,8 @@ export function App() {
     switch (route) {
       case "dashboard":
         return <DashboardView />;
+      case "usage":
+        return <UsageView />;
       case "accounts":
         return <AccountsView />;
       case "providers":
@@ -106,6 +110,8 @@ export function App() {
         return <PricingView />;
       case "errors":
         return <ErrorsView />;
+      case "console":
+        return <ConsoleLogView />;
       case "settings":
         return <SettingsView />;
       case "docs":
@@ -118,6 +124,7 @@ export function App() {
   const getPageTitle = () => {
     switch (route) {
       case "dashboard": return "Live Usage & Analytics Spectrum";
+      case "usage": return "Usage & Analytics";
       case "accounts": return "Provider Key Management";
       case "providers": return "Upstream Provider Nodes";
       case "proxies": return "Egress Proxy Pools";
@@ -126,6 +133,7 @@ export function App() {
       case "members": return "Members & API Keys";
       case "quotas": return "Token Quotas & Caps";
       case "pricing": return "Token Pricing Matrix";
+      case "console": return "Live Gateway Console Stream";
       case "errors": return "Upstream Error Stream";
       case "settings": return "System Settings & SQLite Backup";
       case "docs": return "API Documentation & Developer Quickstart";

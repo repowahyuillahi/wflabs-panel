@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -6,28 +6,33 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api, UsageSummaryResponse, RequestLogsResponse } from "@/lib/api";
 import { formatNumber, formatCurrency } from "@/lib/utils";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import {
+  shortLabel,
+  maskKey,
+  matchMemberId,
+  provIdFor,
+  provLabelsMatch,
+  activeReqsSignature,
+  timeAgo,
+} from "@/lib/graph-helpers";
 import {
   Activity,
-  Server,
   Radio,
   RefreshCw,
-  Zap,
   ArrowUpRight,
   TrendingUp,
   Cpu,
   Coins,
   Layers,
-  Maximize2,
-  Lock,
-  Unlock,
-  SlidersHorizontal,
 } from "lucide-react";
 import { UsageTimelineChart } from "@/components/ui/usage-timeline-chart";
+import { HubGraph } from "@/components/graph/HubGraph";
 
 interface LiveFeedItem {
   id: string;
   timestamp: string;
+  /** Epoch ms — untuk kolom "When" relatif ala native. */
+  ts: number;
   provider: string;
   model: string;
   promptTokens: number;
@@ -36,6 +41,24 @@ interface LiveFeedItem {
   status: string;
   latencyMs?: number;
 }
+
+const GRAPH_COLORS = [
+  { bg: "#f1f5f9", fg: "#64748b" },
+  { bg: "#18181b", fg: "#fafafa" },
+  { bg: "#fdf2f8", fg: "#db2777" },
+  { bg: "#fff7ed", fg: "#ea580c" },
+  { bg: "#ede9fe", fg: "#7c3aed" },
+  { bg: "#eff6ff", fg: "#2563eb" },
+];
+
+const RIGHT_COLORS = [
+  { bg: "#ecfeff", fg: "#0e7490" },
+  { bg: "#ede9fe", fg: "#6d28d9" },
+  { bg: "#fef9c3", fg: "#a16207" },
+  { bg: "#fce7f3", fg: "#be185d" },
+  { bg: "#dcfce7", fg: "#15803d" },
+  { bg: "#f1f5f9", fg: "#475569" },
+];
 
 export function DashboardView() {
   const [period, setPeriod] = useState("today");
@@ -51,28 +74,97 @@ export function DashboardView() {
   // Equalizer & Realtime State
   const [eqBars, setEqBars] = useState<number[]>(() => new Array(36).fill(12));
   const [liveFeed, setLiveFeed] = useState<LiveFeedItem[]>([]);
-  const [streamConnected, setStreamConnected] = useState(false);
   const [streamSpeed, setStreamSpeed] = useState("0 req/min");
   const [streamTokSpeed, setStreamTokSpeed] = useState("0 tok/5s");
 
-  // In-flight & Flow state
+  // In-flight & Flow state (satu-satunya driver highlight: activatePath)
   const [activeRequests, setActiveRequests] = useState<any[]>([]);
-  const [hotNodes, setHotNodes] = useState<{ [id: string]: boolean }>({});
-  const [activeEdgePool, setActiveEdgePool] = useState(false);
-  const [activeEdgeApi, setActiveEdgeApi] = useState(false);
-  const [zoomLevel, setZoomLevel] = useState(1);
-  const [isLocked, setIsLocked] = useState(false);
+  const [activeLeftId, setActiveLeftId] = useState<string | null>(null);
+  const [activeRightId, setActiveRightId] = useState<string | null>(null);
+  const [metaVersion, setMetaVersion] = useState(0);
+
+  // Activity-window registries: only providers/keys with recent traffic are shown
+  const provMetaRef = useRef(new Map<string, { label: string; sub: string; short: string; bg: string; fg: string }>());
+  const provSeenRef = useRef(new Map<string, number>());
+  const keyMetaRef = useRef(new Map<string, { label: string; sub: string; short: string; bg: string; fg: string; fullKey: string }>());
+  const keySeenRef = useRef(new Map<string, number>());
+  const memberKeysRef = useRef<{ id: string; fullKey: string }[]>([]);
+  const lastLogIdRef = useRef("");
+  const activeSigRef = useRef("");
+  const colorIdxRef = useRef(0);
 
   const speedCountRef = useRef(0);
   const tokenCountRef = useRef(0);
   const seenKeysRef = useRef(new Set<string>());
+
+  // Cari box provider yang sudah ada (dipakai seed + touch biar tidak dobel)
+  const findProvId = (name: string): string | null => {
+    const clean = (name || "").trim();
+    if (!clean) return null;
+    for (const [id, meta] of provMetaRef.current.entries()) {
+      if (provLabelsMatch(meta.label || "", clean)) return id;
+    }
+    return null;
+  };
+
+  const touchProvider = (name: string, sub?: string) => {
+    const clean = (name || "").trim();
+    if (!clean) return null;
+    const existing = findProvId(clean);
+    if (existing) {
+      provSeenRef.current.set(existing, Date.now());
+      return existing;
+    }
+    const id = provIdFor(clean);
+    if (!provMetaRef.current.has(id)) {
+      const c = GRAPH_COLORS[colorIdxRef.current++ % GRAPH_COLORS.length];
+      provMetaRef.current.set(id, { label: clean, sub: sub || "live", short: shortLabel(clean), bg: c.bg, fg: c.fg });
+    }
+    provSeenRef.current.set(id, Date.now());
+    return id;
+  };
+
+  const touchKey = (id: string, label: string, sub: string, fullKey = "") => {
+    if (!keyMetaRef.current.has(id)) {
+      const c = RIGHT_COLORS[colorIdxRef.current++ % RIGHT_COLORS.length];
+      keyMetaRef.current.set(id, { label, sub, short: shortLabel(label), bg: c.bg, fg: c.fg, fullKey });
+    }
+    keySeenRef.current.set(id, Date.now());
+    return id;
+  };
+
+  // Jalur client -> hub -> pool menyala bareng ala 9Router.
+  // Dipanggil dari poll live (activeRequests + byApiKey) maupun realtime item.
+  const pathTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activatePath = (provider: string, poolAccount = "", clientLabel = "", clientSub = "", clientFullKey = "") => {
+    const leftId = provider ? touchProvider(provider, poolAccount || undefined) : null;
+    let rightId: string | null = null;
+    if (clientLabel) {
+      const mid = clientFullKey ? matchMemberId(memberKeysRef.current, clientSub || clientFullKey) : null;
+      if (mid) {
+        const meta = keyMetaRef.current.get(mid);
+        touchKey(mid, meta?.label || clientLabel, meta?.sub || clientSub || clientLabel);
+        rightId = mid;
+      } else {
+        const dynId = `key-live-${(clientSub || clientLabel).replace(/[^a-z0-9]+/gi, "-").slice(0, 24)}`;
+        touchKey(dynId, clientLabel, clientSub || "customer key", clientFullKey);
+        rightId = dynId;
+      }
+    }
+    if (leftId) setActiveLeftId(leftId);
+    if (rightId) setActiveRightId(rightId);
+    if (pathTimeoutRef.current) clearTimeout(pathTimeoutRef.current);
+    pathTimeoutRef.current = setTimeout(() => {
+      if (leftId) setActiveLeftId((prev) => (prev === leftId ? null : prev));
+      if (rightId) setActiveRightId((prev) => (prev === rightId ? null : prev));
+    }, 2600);
+  };
 
   // 1. SSE Realtime Stream Connection (/api/usage/stream)
   useEffect(() => {
     let es: EventSource | null = null;
     try {
       es = new EventSource("/api/usage/stream");
-      es.onopen = () => setStreamConnected(true);
       es.onmessage = (e) => {
         if (!e.data || e.data.startsWith(":")) return;
         try {
@@ -80,9 +172,12 @@ export function DashboardView() {
           handleRealtimeItem(item);
         } catch {}
       };
-      es.onerror = () => setStreamConnected(false);
+      es.onerror = () => {
+        try { es?.close(); } catch {}
+        es = null;
+      };
     } catch {
-      setStreamConnected(false);
+      es = null;
     }
 
     const ticker = setInterval(() => {
@@ -124,20 +219,17 @@ export function DashboardView() {
       return next;
     });
 
-    const provId = item.provider ? `pool-${item.provider}` : "pool-client";
-    setHotNodes((prev) => ({ ...prev, [provId]: true, "gw-core": true, "api-upstream": true }));
-    setActiveEdgePool(true);
-    setActiveEdgeApi(true);
-
-    setTimeout(() => {
-      setHotNodes((prev) => ({ ...prev, [provId]: false, "gw-core": false, "api-upstream": false }));
-      setActiveEdgePool(false);
-      setActiveEdgeApi(false);
-    }, 900);
+    // Highlight kiri langsung (responsif), kaki kanan menyusul dari poll live.
+    // Satu pintu via activatePath biar tidak rebutan timeout.
+    if (item.provider) activatePath(item.provider, item.account || "", "", "", "");
 
     const feedItem: LiveFeedItem = {
       id: String(Date.now()) + Math.random(),
       timestamp: item.timestamp ? new Date(item.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString(),
+      ts: (() => {
+        const t = item.timestamp ? new Date(item.timestamp).getTime() : NaN;
+        return Number.isFinite(t) ? (t as number) : Date.now();
+      })(),
       provider: item.provider || "AI",
       model: item.model || "unknown",
       promptTokens: item.promptTokens || 0,
@@ -170,10 +262,43 @@ export function DashboardView() {
         const res = await fetch(`/api/live/usage?period=${period}`).then((r) => r.json());
         if (res.ok && res.live) {
           const actives = res.live.activeRequests || [];
-          setActiveRequests(actives);
+          // Bail-out: jangan re-render dashboard kalau set in-flight tidak berubah
+          const sig = activeReqsSignature(actives);
+          if (sig !== activeSigRef.current) {
+            activeSigRef.current = sig;
+            setActiveRequests(actives);
+          }
           const recents = res.live.recentRequests || [];
           for (const item of recents.slice(0, 5)) {
             handleRealtimeItem(item);
+          }
+          // Nyalakan jalur client -> hub -> pool dari data in-flight.
+          // activeRequests: [{ provider, account, model }], byApiKey: { "mask|model|prov": { keyName, apiKeyMasked, provider, lastUsed } }
+          const byApiKey = res.live.byApiKey || {};
+          const apiEntries = Object.values(byApiKey) as any[];
+          for (const a of actives.slice(0, 3)) {
+            const provider = a.provider || "";
+            const poolAccount = a.account || a.accountName || "";
+            const sameProv = apiEntries
+              .filter((e) => !provider || (e.provider || "").toLowerCase() === provider.toLowerCase())
+              .sort((x, y) => new Date(y.lastUsed || 0).getTime() - new Date(x.lastUsed || 0).getTime());
+            const best = sameProv[0] || apiEntries.sort((x, y) => new Date(y.lastUsed || 0).getTime() - new Date(x.lastUsed || 0).getTime())[0];
+            const clientLabel = best?.keyName || best?.apiKeyKey || "client";
+            const clientSub = best?.apiKeyMasked || best?.apiKeyKey || "";
+            if (provider || clientLabel) activatePath(provider, poolAccount, clientLabel, clientSub, clientSub);
+          }
+          // Kalau tidak ada in-flight tapi ada traffic <60s, tetap pulskan jalur terakhir biar tidak gelap total.
+          if (actives.length === 0 && apiEntries.length > 0) {
+            const fresh = apiEntries
+              .map((e) => ({ e, age: Date.now() - new Date(e.lastUsed || 0).getTime() }))
+              .filter((x) => x.age < 60000)
+              .sort((a, b) => a.age - b.age)[0];
+            if (fresh && recents.length > 0) {
+              const provider = fresh.e.provider || recents[0].provider || "";
+              const clientLabel = fresh.e.keyName || fresh.e.apiKeyKey || "client";
+              const clientSub = fresh.e.apiKeyMasked || "";
+              activatePath(provider, "", clientLabel, clientSub, clientSub);
+            }
           }
         }
       } catch {}
@@ -189,9 +314,170 @@ export function DashboardView() {
     fetchLogs();
   }, [period]);
 
+  // Register provider rack (left, selalu tampil semua) + customer key metadata (right, dinamis)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      let changed = false;
+      try {
+        const p = await api.getProviders();
+        if (!cancelled && p.nodes && p.nodes.length > 0) {
+          for (const n of p.nodes) {
+            const name = n.name || n.prefix || n.id;
+            const sub = `${n.accountActive ?? 0}/${n.accountCount ?? 0} keys`;
+            const eid = findProvId(name);
+            if (eid) {
+              // Refresh info keys; tidak bikin box baru (dedupe sama seperti touch)
+              const m = provMetaRef.current.get(eid);
+              if (m && m.sub !== sub) {
+                m.sub = sub;
+                changed = true;
+              }
+              continue;
+            }
+            const id = provIdFor(name);
+            if (!provMetaRef.current.has(id)) {
+              const c = GRAPH_COLORS[colorIdxRef.current++ % GRAPH_COLORS.length];
+              provMetaRef.current.set(id, {
+                label: name,
+                sub,
+                short: shortLabel(name),
+                bg: c.bg,
+                fg: c.fg,
+              });
+              changed = true;
+            }
+          }
+        }
+      } catch {}
+      try {
+        const m = await api.getMembers();
+        if (!cancelled && m.members && m.members.length > 0) {
+          memberKeysRef.current = m.members.map((x) => ({ id: `key-${x.id}`, fullKey: x.key || "" }));
+          for (const x of m.members) {
+            const id = `key-${x.id}`;
+            if (!keyMetaRef.current.has(id)) {
+              const c = RIGHT_COLORS[colorIdxRef.current++ % RIGHT_COLORS.length];
+              const nm = x.name || "Unnamed";
+              keyMetaRef.current.set(id, {
+                label: nm,
+                sub: maskKey(x.key || ""),
+                short: shortLabel(nm),
+                bg: c.bg,
+                fg: c.fg,
+                fullKey: x.key || "",
+              });
+              changed = true;
+            }
+          }
+        }
+      } catch {}
+      if (changed && !cancelled) setMetaVersion((v) => v + 1);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Backup highlight dari request log (5s poll) — satu pintu via activatePath,
+  // tidak pernah clear paksa; timeout activatePath yang mematikan.
+  useEffect(() => {
+    const pollKeys = async () => {
+      try {
+        const data = await api.getRequestLogs(1, 5, "all", "");
+        const top = data.logs && data.logs[0];
+        if (!top || top.id === lastLogIdRef.current) return;
+        lastLogIdRef.current = top.id;
+        const masked = (top as any).apiKey || "";
+        const label = masked && masked !== "-" ? maskKey(masked) : "";
+        activatePath(top.provider || "", "", label, masked || "", masked || "");
+      } catch {}
+    };
+    pollKeys();
+    const interval = setInterval(pollKeys, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
   // Max calculations for progress distribution
   const maxModelTokens = Math.max(...(summary?.models || []).map((m) => m.promptTokens + m.completionTokens), 1);
   const maxAccountTokens = Math.max(...(summary?.accounts || []).map((a) => a.promptTokens + a.completionTokens), 1);
+
+  // Feed selalu newest-first (batch poll datang newest-first tapi di-prepend satu-satu,
+  // jadi tanpa sort ini urutannya kebalik).
+  const sortedFeed = useMemo(() => [...liveFeed].sort((a, b) => b.ts - a.ts), [liveFeed]);
+
+  // LEFT rack: SELALU tampil semua provider (tanpa cap; fade dihitung lokal di HubGraph).
+  // Kanan (client/API key) yang dinamis ganti-ganti.
+  // NOTE: opacity/fade TIDAK dihitung di sini supaya dashboard tidak re-render tiap detik —
+  // parent hanya kirim seenAt, HubGraph yang men-tick fade-nya sendiri (murah).
+  const leftNodes = useMemo(() => {
+    const all = [...provMetaRef.current.entries()].map(([id, meta]) => {
+      const ts = provSeenRef.current.get(id) ?? 0;
+      return {
+        id,
+        label: meta.label,
+        sub: meta.sub,
+        short: meta.short,
+        bg: meta.bg,
+        fg: meta.fg,
+        seenAt: ts,
+        dimOpacity: 0.6,
+        _ts: ts,
+      };
+    });
+    // Aktif (paling baru) dulu, lalu sisanya urutan daftar
+    all.sort((a, b) => b._ts - a._ts);
+    const nodes = all.map(({ _ts, ...n }) => n);
+    if (nodes.length === 0) {
+      nodes.push({
+        id: "prov-idle",
+        label: "No providers",
+        sub: "gateway offline?",
+        short: "...",
+        bg: "#f1f5f9",
+        fg: "#94a3b8",
+        opacity: 0.85,
+        ghost: true,
+      } as any);
+    }
+    return nodes;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metaVersion, activeLeftId]);
+
+  // RIGHT rack: dinamis client/API keys. Idle tetap tampil (redup), tidak kosong:
+  // terakhir terlihat dulu, lalu member yang belum pernah traffic.
+  const rightNodes = useMemo(() => {
+    const all = [...keyMetaRef.current.entries()].map(([id, meta]) => {
+      const ts = keySeenRef.current.get(id) ?? 0;
+      return {
+        id,
+        label: meta.label,
+        sub: meta.sub,
+        short: meta.short,
+        bg: meta.bg,
+        fg: meta.fg,
+        seenAt: ts,
+        dimOpacity: ts > 0 ? 0.55 : 0.75,
+        _ts: ts,
+      };
+    });
+    all.sort((a, b) => b._ts - a._ts);
+    const nodes = all.map(({ _ts, ...n }) => n);
+    if (nodes.length === 0) {
+      nodes.push({
+        id: "key-idle",
+        label: "No client keys",
+        sub: "buat member dulu",
+        short: "...",
+        bg: "#f1f5f9",
+        fg: "#94a3b8",
+        opacity: 0.85,
+        ghost: true,
+      } as any);
+    }
+    return nodes;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metaVersion, activeRightId]);
 
   return (
     <div className="space-y-4 max-w-7xl mx-auto pb-6 font-sans">
@@ -262,181 +548,7 @@ export function DashboardView() {
         </div>
       </div>
 
-      {/* 2. COMPACT USAGE WIRE & TELEMETRY STRIP (Height reduced from 320px to 175px) */}
-      {showFlow && (
-        <Card className="shadow-2xs overflow-hidden border-border">
-          <div className="px-4 py-2 border-b flex items-center justify-between bg-muted/20 text-xs">
-            <div className="flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-              </span>
-              <span className="font-bold text-foreground">Interactive Routing Wire</span>
-              <span className="text-muted-foreground font-mono text-[11px]">(:20128 Gateway Pipeline)</span>
-            </div>
-
-            <div className="flex items-center gap-3">
-              {/* Mini Inline Audio Equalizer */}
-              <div className="flex items-end gap-0.5 h-5 w-28 bg-muted/60 p-0.5 rounded overflow-hidden">
-                {eqBars.slice(0, 24).map((val, idx) => (
-                  <div
-                    key={idx}
-                    className="flex-1 rounded-xs transition-all duration-300"
-                    style={{
-                      height: `${val}%`,
-                      backgroundColor: val > 60 ? "hsl(var(--primary))" : "hsl(var(--muted-foreground) / 0.4)",
-                    }}
-                  />
-                ))}
-              </div>
-
-              {activeRequests.length > 0 ? (
-                <Badge variant="success" className="font-mono text-[10px] py-0.5">
-                  {activeRequests.length} IN-FLIGHT
-                </Badge>
-              ) : (
-                <span className="text-[11px] font-mono text-muted-foreground">IDLE LISTENING</span>
-              )}
-
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowFlow(false)}
-                className="h-6 px-1.5 text-xs text-muted-foreground hover:text-foreground"
-              >
-                ×
-              </Button>
-            </div>
-          </div>
-
-          <CardContent className="p-0 relative">
-            <div
-              className="h-44 w-full relative overflow-hidden select-none bg-[#fbfbfb] dark:bg-[#0c0c0e]"
-              style={{
-                backgroundImage: "radial-gradient(circle, rgba(160, 160, 160, 0.18) 1.2px, transparent 1.2px)",
-                backgroundSize: "16px 16px",
-              }}
-            >
-              <div
-                className="w-full h-full flex items-center justify-between px-10 relative transition-transform duration-200"
-                style={{ transform: `scale(${zoomLevel})`, transformOrigin: "center center" }}
-              >
-                {/* Node 1: Clients */}
-                <div
-                  className={`w-52 p-2.5 rounded-lg border bg-card shadow-2xs transition-all z-10 ${
-                    hotNodes["pool-client"] ? "border-emerald-500 ring-2 ring-emerald-500/20" : "border-border"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
-                        <Server className="w-3.5 h-3.5" />
-                      </div>
-                      <div className="text-xs font-bold text-foreground">Client Pools</div>
-                    </div>
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                  </div>
-                  <div className="mt-1.5 pt-1.5 border-t border-border/60 text-[10px] text-muted-foreground flex justify-between font-mono">
-                    <span>Target:</span>
-                    <span className="text-foreground font-semibold">Claude / Cursor</span>
-                  </div>
-                </div>
-
-                {/* Node 2: 9Router Core Gateway */}
-                <div
-                  className={`w-64 p-3 rounded-xl border-2 bg-card shadow-sm transition-all z-10 text-center ${
-                    hotNodes["gw-core"] ? "border-emerald-500 ring-3 ring-emerald-500/20 shadow-md" : "border-emerald-600/80"
-                  }`}
-                >
-                  <div className="flex items-center justify-center gap-2">
-                    <Radio className="w-4 h-4 text-emerald-600 animate-pulse" />
-                    <span className="text-xs font-bold text-foreground">9Router Gateway</span>
-                    <Badge variant="outline" className="text-[10px] font-mono px-1 py-0">
-                      :20128
-                    </Badge>
-                  </div>
-                  <div className="mt-2 py-1 px-2 rounded bg-muted/60 text-[10px] font-mono flex items-center justify-between">
-                    <span className="text-muted-foreground">Status:</span>
-                    <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                      {activeRequests.length > 0 ? `${activeRequests.length} Running` : "Healthy Idle"}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Node 3: Upstream Cluster */}
-                <div
-                  className={`w-52 p-2.5 rounded-lg border bg-card shadow-2xs transition-all z-10 ${
-                    hotNodes["api-upstream"] ? "border-cyan-500 ring-2 ring-cyan-500/20" : "border-border"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded bg-cyan-500/10 text-cyan-600 flex items-center justify-center">
-                        <Activity className="w-3.5 h-3.5" />
-                      </div>
-                      <div className="text-xs font-bold text-foreground">Upstream APIs</div>
-                    </div>
-                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-500" />
-                  </div>
-                  <div className="mt-1.5 pt-1.5 border-t border-border/60 text-[10px] text-muted-foreground flex justify-between font-mono">
-                    <span>Available:</span>
-                    <span className="text-cyan-600 font-bold">{summary?.models?.length || 0} Models</span>
-                  </div>
-                </div>
-
-                {/* Connecting SVG Animated Wires */}
-                <svg className="absolute inset-0 w-full h-full pointer-events-none stroke-2">
-                  <line x1="22%" y1="50%" x2="38%" y2="50%" className="stroke-border" strokeWidth={2} />
-                  <line x1="62%" y1="50%" x2="78%" y2="50%" className="stroke-border" strokeWidth={2} />
-                  <line
-                    x1="22%"
-                    y1="50%"
-                    x2="38%"
-                    y2="50%"
-                    className={activeEdgePool || hotNodes["gw-core"] ? "stroke-emerald-500 rf-edge-flow-active" : "stroke-transparent"}
-                    strokeWidth={2.5}
-                  />
-                  <line
-                    x1="62%"
-                    y1="50%"
-                    x2="78%"
-                    y2="50%"
-                    className={activeEdgeApi || hotNodes["api-upstream"] ? "stroke-cyan-500 rf-edge-flow-cyan" : "stroke-transparent"}
-                    strokeWidth={2.5}
-                  />
-                </svg>
-              </div>
-
-              {/* Minimal Zoom Controls */}
-              <div className="absolute left-3 bottom-3 flex rounded-md border border-border bg-card/90 shadow-2xs overflow-hidden z-20 text-xs">
-                <button
-                  onClick={() => setZoomLevel((z) => Math.min(1.3, z + 0.1))}
-                  className="px-2 py-0.5 hover:bg-muted font-bold border-r border-border"
-                  title="Zoom In"
-                >
-                  +
-                </button>
-                <button
-                  onClick={() => setZoomLevel((z) => Math.max(0.8, z - 0.1))}
-                  className="px-2 py-0.5 hover:bg-muted font-bold border-r border-border"
-                  title="Zoom Out"
-                >
-                  −
-                </button>
-                <button
-                  onClick={() => setZoomLevel(1)}
-                  className="px-1.5 py-0.5 hover:bg-muted text-[10px]"
-                  title="Reset"
-                >
-                  100%
-                </button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* 3. 5 HIGH-DENSITY KPI CARDS */}
+      {/* 2. 5 HIGH-DENSITY KPI CARDS (moved to top) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         <Card className="shadow-2xs border-border">
           <CardHeader className="flex flex-row items-center justify-between pb-1.5 space-y-0 p-4">
@@ -507,46 +619,163 @@ export function DashboardView() {
         </Card>
       </div>
 
-      {/* 4. OVERVIEW SUB-TAB: ANALYTICS CHART & COMPACT LIVE STREAM */}
+      {/* 3. NODE GRAPH (:20128 Gateway Pipeline) */}
+      {showFlow && (
+        <Card className="shadow-2xs overflow-hidden border-border">
+          <div className="px-4 py-2 border-b flex items-center justify-between bg-muted/20 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+              <span className="font-bold text-foreground">Interactive Routing Wire</span>
+              <span className="text-muted-foreground font-mono text-[11px]">(:20128 Gateway Pipeline)</span>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {/* Mini Inline Audio Equalizer */}
+              <div className="flex items-end gap-0.5 h-5 w-28 bg-muted/60 p-0.5 rounded overflow-hidden">
+                {eqBars.slice(0, 24).map((val, idx) => (
+                  <div
+                    key={idx}
+                    className="flex-1 rounded-xs transition-all duration-300"
+                    style={{
+                      height: `${val}%`,
+                      backgroundColor: val > 60 ? "hsl(var(--primary))" : "hsl(var(--muted-foreground) / 0.4)",
+                    }}
+                  />
+                ))}
+              </div>
+
+              {activeRequests.length > 0 ? (
+                <Badge variant="success" className="font-mono text-[10px] py-0.5">
+                  {activeRequests.length} IN-FLIGHT
+                </Badge>
+              ) : (
+                <span className="text-[11px] font-mono text-muted-foreground">IDLE LISTENING</span>
+              )}
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowFlow(false)}
+                className="h-6 px-1.5 text-xs text-muted-foreground hover:text-foreground"
+              >
+                ×
+              </Button>
+            </div>
+          </div>
+
+          <CardContent className="p-0 relative">
+            <div className="flex flex-col lg:flex-row">
+              <div
+                className="flex-1 min-w-0 h-[360px] relative overflow-hidden select-none bg-white dark:bg-[#0c0c0e]"
+              >
+                <HubGraph
+                  left={leftNodes}
+                  right={rightNodes}
+                  activeLeft={activeLeftId}
+                  activeRight={activeRightId}
+                  activeCount={activeRequests.length}
+                  hubHot={activeRequests.length > 0 || activeLeftId !== null || activeRightId !== null}
+                />
+
+                {/* Hub status chip */}
+                <div className="absolute left-1/2 -translate-x-1/2 bottom-3 z-20">
+                  <span className="font-mono text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-card/90 border border-border rounded-md px-2 py-1">
+                    {activeRequests.length > 0 ? `${activeRequests.length} Running` : "Healthy Idle"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Recent Requests — ala 9Router native */}
+              <aside className="lg:w-[300px] shrink-0 border-t lg:border-t-0 lg:border-l border-border bg-white dark:bg-zinc-950 flex flex-col lg:h-[360px] min-h-0">
+                <div className="px-4 pt-3 pb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Recent Requests
+                </div>
+                <div className="px-4 pb-1.5 grid grid-cols-[1fr_auto_auto] gap-2 text-[10px] font-semibold text-muted-foreground border-b border-border">
+                  <span>Model</span>
+                  <span className="text-right">In / Out</span>
+                  <span className="text-right w-14">When</span>
+                </div>
+                <div className="flex-1 min-h-0 overflow-y-auto max-h-[240px] lg:max-h-none">
+                  {sortedFeed.slice(0, 14).map((item) => (
+                    <div
+                      key={item.id}
+                      className="grid grid-cols-[1fr_auto_auto] items-center gap-2 px-4 py-[7px] border-b border-border/50 last:border-0"
+                    >
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                        <span className="text-xs font-mono text-foreground truncate" title={item.model}>
+                          {item.model}
+                        </span>
+                      </div>
+                      <div className="text-xs font-mono whitespace-nowrap">
+                        <span className="font-semibold text-orange-700 dark:text-orange-400">
+                          {formatNumber(item.promptTokens)}↑
+                        </span>{" "}
+                        <span className="text-orange-400 dark:text-orange-500">
+                          {formatNumber(item.completionTokens)}↓
+                        </span>
+                      </div>
+                      <div className="text-[11px] font-mono text-muted-foreground text-right w-14">
+                        {timeAgo(item.ts)}
+                      </div>
+                    </div>
+                  ))}
+                  {liveFeed.length === 0 && (
+                    <div className="text-center text-muted-foreground text-xs py-10">
+                      Waiting for requests...
+                    </div>
+                  )}
+                </div>
+              </aside>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 4. OVERVIEW SUB-TAB: FULL-WIDTH ANALYTICS CHART + FEED/SIDEBAR TABLES */}
       {subTab === "overview" && (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* Left: Token / Cost Analytics Bar Chart */}
-            <Card className="lg:col-span-2 shadow-2xs border-border">
-              <CardHeader className="flex flex-row items-center justify-between py-3 px-5 border-b space-y-0">
-                <div>
-                  <CardTitle className="text-sm font-bold text-foreground">Usage &amp; Token Chart</CardTitle>
-                  <CardDescription className="text-xs text-muted-foreground">Aggregated activity over {period}</CardDescription>
-                </div>
-                <div className="inline-flex h-7 items-center rounded-lg bg-muted p-0.5 text-xs">
-                  <button
-                    onClick={() => setChartMetric("tokens")}
-                    className={`px-2.5 py-0.5 rounded-md font-semibold transition-all ${
-                      chartMetric === "tokens" ? "bg-background text-foreground shadow-2xs" : "text-muted-foreground"
-                    }`}
-                  >
-                    Tokens
-                  </button>
-                  <button
-                    onClick={() => setChartMetric("cost")}
-                    className={`px-2.5 py-0.5 rounded-md font-semibold transition-all ${
-                      chartMetric === "cost" ? "bg-background text-foreground shadow-2xs" : "text-muted-foreground"
-                    }`}
-                  >
-                    Cost
-                  </button>
-                </div>
-              </CardHeader>
-              <CardContent className="p-4">
-                <UsageTimelineChart
-                  timeline={summary?.timeline || []}
-                  metric={chartMetric}
-                  period={period}
-                />
-              </CardContent>
-            </Card>
+          {/* Token / Cost Analytics Bar Chart (full width) */}
+          <Card className="shadow-2xs border-border">
+            <CardHeader className="flex flex-row items-center justify-between py-3 px-5 border-b space-y-0">
+              <div>
+                <CardTitle className="text-sm font-bold text-foreground">Usage &amp; Token Chart</CardTitle>
+                <CardDescription className="text-xs text-muted-foreground">Aggregated activity over {period}</CardDescription>
+              </div>
+              <div className="inline-flex h-7 items-center rounded-lg bg-muted p-0.5 text-xs">
+                <button
+                  onClick={() => setChartMetric("tokens")}
+                  className={`px-2.5 py-0.5 rounded-md font-semibold transition-all ${
+                    chartMetric === "tokens" ? "bg-background text-foreground shadow-2xs" : "text-muted-foreground"
+                  }`}
+                >
+                  Tokens
+                </button>
+                <button
+                  onClick={() => setChartMetric("cost")}
+                  className={`px-2.5 py-0.5 rounded-md font-semibold transition-all ${
+                    chartMetric === "cost" ? "bg-background text-foreground shadow-2xs" : "text-muted-foreground"
+                  }`}
+                >
+                  Cost
+                </button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4">
+              <UsageTimelineChart
+                timeline={summary?.timeline || []}
+                metric={chartMetric}
+                period={period}
+              />
+            </CardContent>
+          </Card>
 
-            {/* Right: Compact Live Request Stream Table */}
+          {/* 5. LIVE STREAM + BREAKDOWN TABLES SIDE BY SIDE */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Compact Live Request Stream */}
             <Card className="shadow-2xs border-border flex flex-col">
               <CardHeader className="py-3 px-5 border-b flex flex-row items-center justify-between space-y-0">
                 <CardTitle className="text-sm font-bold text-foreground">Live Feed Stream</CardTitle>
@@ -554,8 +783,8 @@ export function DashboardView() {
                   REALTIME
                 </Badge>
               </CardHeader>
-              <div className="p-2 max-h-[295px] overflow-y-auto space-y-1.5 flex-1">
-                {liveFeed.map((item) => (
+              <div className="p-2 max-h-[320px] overflow-y-auto space-y-1.5 flex-1">
+                {sortedFeed.map((item) => (
                   <div
                     key={item.id}
                     className="p-2 rounded-md border border-border bg-card flex items-center justify-between text-xs shadow-2xs hover:bg-muted/40 transition-colors"
@@ -581,10 +810,7 @@ export function DashboardView() {
                 )}
               </div>
             </Card>
-          </div>
 
-          {/* 5. INFORMATIVE BREAKDOWN TABLES WITH PERCENTAGE DISTRIBUTION BARS */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* By Model */}
             <Card className="shadow-2xs border-border">
               <CardHeader className="py-3 px-5 border-b flex flex-row items-center justify-between space-y-0">
@@ -787,8 +1013,4 @@ export function DashboardView() {
       )}
     </div>
   );
-}
-
-function CartGrid(props: any) {
-  return <CartesianGrid {...props} />;
 }

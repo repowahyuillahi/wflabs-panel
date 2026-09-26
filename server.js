@@ -825,7 +825,12 @@ const server = http.createServer(async (req, res) => {
             totalTokens: (u.promptTokens || 0) + (u.completionTokens || 0),
             totalCost: u.totalCost || 0,
             lastUsed: u.lastUsed || null,
-            quota: q
+            quota: {
+              maxTokens: q.maxTokens,
+              maxCost: q.maxCost,
+              plan: q.plan,
+              allowedModels: Array.isArray(q.allowedModels) ? q.allowedModels : []
+            }
           };
         });
 
@@ -858,7 +863,8 @@ const server = http.createServer(async (req, res) => {
         quotaMap[id] = {
           maxTokens: parseInt(body.maxTokens, 10) || 5000000,
           maxCost: parseFloat(body.maxCost) || 50.0,
-          plan: body.plan || "Standard"
+          plan: body.plan || "Standard",
+          allowedModels: Array.isArray(body.allowedModels) ? body.allowedModels : []
         };
         db.prepare(`
           INSERT INTO kv(scope, key, value) VALUES('memberQuotas', 'limits', ?)
@@ -919,12 +925,22 @@ const server = http.createServer(async (req, res) => {
       try {
         const quotaRow = db.prepare("SELECT value FROM kv WHERE scope = 'memberQuotas' AND key = 'limits'").get();
         const quotaMap = quotaRow ? safeJson(quotaRow.value, {}) : {};
-        quotaMap[id] = {
+        const prev = quotaMap[id] || {};
+
+        const next = {
+          ...prev,
           maxTokens: parseInt(body.maxTokens, 10) || 5000000,
           maxCost: parseFloat(body.maxCost) || 50.0,
-          plan: body.plan || "Standard",
+          plan: body.plan || prev.plan || "Standard",
           balance: parseFloat(body.balance) || 0
         };
+
+        // Allow-list of models for this specific API key (empty array = all models allowed)
+        if (Array.isArray(body.allowedModels)) {
+          next.allowedModels = body.allowedModels.filter((m) => typeof m === "string" && m.trim()).map((m) => m.trim());
+        }
+
+        quotaMap[id] = next;
 
         db.prepare(`
           INSERT INTO kv(scope, key, value) VALUES('memberQuotas', 'limits', ?)
@@ -1381,6 +1397,38 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
+    // 20a. CONSOLE LOGS PASSTHROUGH (9Router Gateway Live Translator Logs)
+    if (pathname === "/api/console-logs" && req.method === "GET") {
+      const liveReq = http.request(
+        {
+          hostname: "127.0.0.1",
+          port: LIVE_PORT,
+          path: "/api/translator/console-logs",
+          method: "GET",
+          timeout: 5000
+        },
+        (liveRes) => {
+          let raw = "";
+          liveRes.on("data", (c) => (raw += c));
+          liveRes.on("end", () => {
+            try {
+              const data = JSON.parse(raw);
+              return sendJson(res, 200, { ok: true, logs: data.logs || [] });
+            } catch {
+              return sendJson(res, 200, { ok: true, logs: [] });
+            }
+          });
+        }
+      );
+      liveReq.on("error", (err) => sendError(res, 502, `Live gateway unreachable: ${err.message}`));
+      liveReq.on("timeout", () => {
+        liveReq.destroy();
+        sendError(res, 504, "Console logs request timeout");
+      });
+      liveReq.end();
+      return;
+    }
+
     // 20b. LIVE GATEWAY REALTIME PASSTHROUGH (READ-ONLY, NO DISTURBANCE)
     // 9router 20128 membuang stdout console (stdio ignore) dan tidak menulis
     // file log, jadi sumber realtime per-request adalah API live-nya sendiri:
@@ -1590,6 +1638,122 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
+    // 20f. USAGE REQUEST DETAILS (PAGINATED + DATE/PROVIDER FILTERS — MIRRORS 9ROUTER DASHBOARD)
+    if (pathname === "/api/usage/request-details" && req.method === "GET") {
+      const page = Math.max(1, parseInt(params.get("page") || "1", 10));
+      const pageSize = Math.min(100, Math.max(1, parseInt(params.get("pageSize") || "20", 10)));
+      const provider = (params.get("provider") || "").trim();
+      const startDate = (params.get("startDate") || "").trim();
+      const endDate = (params.get("endDate") || "").trim();
+      const offset = (page - 1) * pageSize;
+
+      const db = getLiveDb(true);
+      try {
+        let where = "WHERE 1=1";
+        const args = [];
+        if (provider) {
+          where += " AND provider = ?";
+          args.push(provider);
+        }
+        if (startDate) {
+          where += " AND timestamp >= ?";
+          args.push(new Date(startDate).toISOString());
+        }
+        if (endDate) {
+          where += " AND timestamp <= ?";
+          args.push(new Date(endDate).toISOString());
+        }
+
+        const countRow = db.prepare(`SELECT count(*) as c FROM usageHistory ${where}`).get(...args);
+        const rows = db.prepare(`
+          SELECT id, timestamp, provider, model, connectionId, apiKey, status,
+                 promptTokens, completionTokens, cost, tokens, meta
+          FROM usageHistory
+          ${where}
+          ORDER BY id DESC
+          LIMIT ? OFFSET ?
+        `).all(...args, pageSize, offset);
+
+        const details = rows.map((r) => {
+          const tok = safeJson(r.tokens, {});
+          const meta = safeJson(r.meta, {});
+          const cached = tok.cached_tokens || tok.cache_read_input_tokens || 0;
+          const cacheCreation = tok.cache_creation_input_tokens || 0;
+          const promptTok = tok.prompt_tokens || r.promptTokens || 0;
+          const completionTok = tok.completion_tokens || r.completionTokens || 0;
+
+          return {
+            id: r.id,
+            provider: r.provider || "unknown",
+            model: r.model || "unknown",
+            connectionId: r.connectionId || null,
+            timestamp: r.timestamp,
+            status: r.status === "ok" || r.status === "success" ? "success" : (r.status || "error"),
+            latency: {
+              ttft: Number(meta.ttft) || Number(meta.ttftMs) || 0,
+              total: Number(meta.duration) || Number(meta.durationMs) || Number(meta.latency) || 0
+            },
+            tokens: {
+              prompt_tokens: promptTok,
+              completion_tokens: completionTok,
+              cached_tokens: cached,
+              cache_creation_input_tokens: cacheCreation
+            },
+            cost: r.cost || 0
+          };
+        });
+
+        const totalItems = countRow.c || 0;
+        return sendJson(res, 200, {
+          ok: true,
+          details,
+          pagination: {
+            page,
+            pageSize,
+            totalItems,
+            totalPages: Math.ceil(totalItems / pageSize) || 0
+          }
+        });
+      } finally {
+        db.close();
+      }
+    }
+
+    // 20g. USAGE PROVIDER LIST (FOR DETAILS FILTER DROPDOWN)
+    if (pathname === "/api/usage/providers" && req.method === "GET") {
+      const db = getLiveDb(true);
+      try {
+        const rows = db.prepare(`
+          SELECT provider, count(*) as c
+          FROM usageHistory
+          WHERE provider IS NOT NULL AND provider != ''
+          GROUP BY provider
+          ORDER BY c DESC
+        `).all();
+
+        const nodeRows = db.prepare("SELECT id, name FROM providerNodes").all();
+        const nodeNames = {};
+        for (const n of nodeRows) nodeNames[n.id] = n.name;
+
+        const PRETTY = {
+          kiro: "Kiro AI",
+          antigravity: "Antigravity",
+          fireworks: "Fireworks AI",
+          openai: "OpenAI"
+        };
+
+        const providers = rows.map((r) => ({
+          id: r.provider,
+          name: nodeNames[r.provider] || PRETTY[r.provider] || r.provider,
+          count: r.c
+        }));
+
+        return sendJson(res, 200, { ok: true, providers });
+      } finally {
+        db.close();
+      }
+    }
+
     // 21. REALTIME USAGE SSE STREAM (LIVE 20128)
     if (pathname === "/api/usage/stream" && req.method === "GET") {
       res.writeHead(200, {
@@ -1707,12 +1871,27 @@ const server = http.createServer(async (req, res) => {
       }
 
       const reqModel = body.model;
+
+      // Global disabled models check
       const disabledRow = db.prepare("SELECT value FROM kv WHERE scope = 'disabledModels'").all();
       for (const d of disabledRow) {
         const dList = safeJson(d.value, []);
         if (dList.includes(reqModel)) {
           db.close();
           return sendError(res, 403, `Model '${reqModel}' has been disabled by administrator`);
+        }
+      }
+
+      // Per-member allowed models whitelist check
+      if (memberKeyRow) {
+        const quotaRow2 = db.prepare("SELECT value FROM kv WHERE scope = 'memberQuotas' AND key = 'limits'").get();
+        const quotaMap2 = quotaRow2 ? safeJson(quotaRow2.value, {}) : {};
+        const mq = quotaMap2[memberKeyRow.id] || {};
+        const allowedList = Array.isArray(mq.allowedModels) ? mq.allowedModels : [];
+
+        if (allowedList.length > 0 && !allowedList.includes(reqModel)) {
+          db.close();
+          return sendError(res, 403, `Model '${reqModel}' is not permitted for your API key. Allowed: ${allowedList.slice(0, 5).join(", ")}${allowedList.length > 5 ? ` (+${allowedList.length - 5} more)` : ""}`);
         }
       }
 

@@ -90,6 +90,7 @@ export interface RequestLogsResponse {
     status: string;
     latencyMs: number;
     memberKey?: string;
+    apiKey?: string;
   }>;
 }
 
@@ -186,6 +187,7 @@ export interface MembersResponse {
       maxTokens?: number;
       maxCost?: number;
       plan?: string;
+      allowedModels?: string[];
     };
     createdAt: string;
   }>;
@@ -230,6 +232,53 @@ export interface SettingsResponse {
   }>;
 }
 
+export interface UsageStatsResponse {
+  ok: boolean;
+  totalRequests: number;
+  totalPromptTokens: number;
+  totalCompletionTokens: number;
+  totalCachedTokens: number;
+  totalCost: number;
+  byProvider?: Record<string, any>;
+  byModel?: Record<string, any>;
+  byAccount?: Record<string, any>;
+  byApiKey?: Record<string, any>;
+  byEndpoint?: Record<string, any>;
+  last10Minutes?: any;
+  pending?: { byModel?: Record<string, number>; byAccount?: Record<string, any> };
+  activeRequests?: any[];
+  recentRequests?: any[];
+  errorProvider?: string;
+}
+
+export interface UsageDetailItem {
+  id: number;
+  provider: string;
+  model: string;
+  connectionId: string | null;
+  timestamp: string;
+  status: string;
+  latency: { ttft: number; total: number };
+  tokens: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    cached_tokens: number;
+    cache_creation_input_tokens: number;
+  };
+  cost: number;
+}
+
+export interface UsageDetailsResponse {
+  ok: boolean;
+  details: UsageDetailItem[];
+  pagination: { page: number; pageSize: number; totalItems: number; totalPages: number };
+}
+
+export interface UsageProvidersResponse {
+  ok: boolean;
+  providers: Array<{ id: string; name: string; count: number }>;
+}
+
 export interface QuotaPackage {
   id: string;
   name: string;
@@ -272,6 +321,34 @@ export const api = {
   // 1. Live Instances Status & Ping
   getInstances: () => request<LiveInstanceResponse>("/api/instances"),
   getDbStats: () => request<DbStatsResponse>("/api/db/stats"),
+
+  // 1b. Usage Analytics (mirrors 9Router dashboard/usage)
+  getUsageStats: (period = "today") => request<UsageStatsResponse>(`/api/live/usage?period=${period}`).then((r: any) => ({
+    ok: true,
+    totalRequests: r.live?.totalRequests || 0,
+    totalPromptTokens: r.live?.totalPromptTokens || 0,
+    totalCompletionTokens: r.live?.totalCompletionTokens || 0,
+    totalCachedTokens: r.live?.totalCachedTokens || 0,
+    totalCost: r.live?.totalCost || 0,
+    byProvider: r.live?.byProvider || {},
+    byModel: r.live?.byModel || {},
+    byAccount: r.live?.byAccount || {},
+    byApiKey: r.live?.byApiKey || {},
+    byEndpoint: r.live?.byEndpoint || {},
+    last10Minutes: r.live?.last10Minutes,
+    pending: r.live?.pending,
+    activeRequests: r.live?.activeRequests || [],
+    recentRequests: r.live?.recentRequests || [],
+    errorProvider: r.live?.errorProvider,
+  } as UsageStatsResponse)),
+  getUsageDetails: (page = 1, pageSize = 20, provider = "", startDate = "", endDate = "") => {
+    const qs = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    if (provider) qs.append("provider", provider);
+    if (startDate) qs.append("startDate", startDate);
+    if (endDate) qs.append("endDate", endDate);
+    return request<UsageDetailsResponse>(`/api/usage/request-details?${qs.toString()}`);
+  },
+  getUsageProviders: () => request<UsageProvidersResponse>("/api/usage/providers"),
 
   // 2. Live Heal Kiro
   healAllKiro: () => request<{ ok: boolean; message: string; healedCount: number }>("/api/db/kiro/heal-all", {
@@ -361,15 +438,17 @@ export const api = {
     };
   },
 
-  // 4. Request Logs
+  // 4. Request Logs (backend: /api/usage/request-logs?provider=&status=&limit=&offset=&search=)
   getRequestLogs: async (page = 1, limit = 50, filter = "all", search = ""): Promise<RequestLogsResponse> => {
-    const res = await request<{ ok: boolean; total: number; page: number; limit: number; logs: any[] }>(
-      `/api/usage/request-logs?page=${page}&limit=${limit}&filter=${encodeURIComponent(filter)}&search=${encodeURIComponent(search)}`
+    const offset = (Math.max(1, page) - 1) * limit;
+    const status = filter === "ok" || filter === "error" ? filter : "all";
+    const res = await request<{ ok: boolean; total: number; logs: any[] }>(
+      `/api/usage/request-logs?provider=all&status=${encodeURIComponent(status)}&limit=${limit}&offset=${offset}&search=${encodeURIComponent(search)}`
     );
     return {
       ok: true,
-      page: res.page || page,
-      limit: res.limit || limit,
+      page,
+      limit,
       total: res.total || 0,
       logs: (res.logs || []).map((l: any) => ({
         id: l.id || String(Math.random()),
@@ -383,6 +462,7 @@ export const api = {
         status: l.status || "ok",
         latencyMs: l.latencyMs || l.duration || 0,
         memberKey: l.memberKey || "",
+        apiKey: l.apiKey || "",
       })),
     };
   },
@@ -453,10 +533,32 @@ export const api = {
     body: JSON.stringify({ confirmLiveWrite: true }),
   }),
 
-  getProxies: () => request<ProxiesResponse>("/api/proxy-pools"),
+  getProxies: async (): Promise<ProxiesResponse> => {
+    const res = await request<{ ok: boolean; count: number; total: number; pools?: any[]; proxies?: any[] }>("/api/proxy-pools");
+    const raw = Array.isArray(res.pools) ? res.pools : (Array.isArray(res.proxies) ? res.proxies : []);
+    return {
+      ok: true,
+      count: res.count || raw.length,
+      proxies: raw.map((p: any) => ({
+        id: p.id,
+        name: p.name || (p.proxyUrl ? p.proxyUrl.replace(/^.*@([^@/]+).*/, "$1") : p.id.slice(0, 8)),
+        url: p.proxyUrl || p.url || "",
+        type: p.type || "http",
+        isActive: p.isActive === true || p.isActive === 1 ? 1 : 0,
+        latencyMs: p.latencyMs || p.latency || undefined,
+        lastChecked: p.lastTestedAt || p.lastChecked || undefined,
+        status: p.testStatus || p.status || "active",
+      })),
+    };
+  },
   saveProxy: (data: any) => request("/api/proxy-pools", {
     method: "POST",
-    body: JSON.stringify({ ...data, confirmLiveWrite: true }),
+    body: JSON.stringify({
+      name: data.name,
+      proxyUrl: data.url || data.proxyUrl,
+      type: data.type || "http",
+      confirmLiveWrite: true,
+    }),
   }),
   deleteProxy: (id: string) => request(`/api/proxy-pools/${encodeURIComponent(id)}`, {
     method: "DELETE",
@@ -497,7 +599,27 @@ export const api = {
   }),
 
   // 8. Members, Quotas & Pricing
-  getMembers: () => request<MembersResponse>("/api/members"),
+  getMembers: async (): Promise<MembersResponse> => {
+    const res = await request<{ ok: boolean; count: number; members: any[] }>("/api/members");
+    return {
+      ok: true,
+      count: res.count || (res.members ? res.members.length : 0),
+      members: (res.members || []).map((m: any) => ({
+        id: m.id,
+        name: m.name || "Member",
+        key: m.key || "",
+        machineId: m.machineId || undefined,
+        isActive: m.isActive === true || m.isActive === 1 ? 1 : 0,
+        totalRequests: m.totalRequests ?? m.reqs ?? 0,
+        totalTokens: m.totalTokens ?? ((m.promptTokens || 0) + (m.completionTokens || 0)),
+        totalCost: m.totalCost ?? 0,
+        maxTokens: m.maxTokens ?? m.quota?.maxTokens,
+        maxCost: m.maxCost ?? m.quota?.maxCost,
+        quota: m.quota,
+        createdAt: m.createdAt || "",
+      })),
+    };
+  },
   createMember: (data: any) => request("/api/members", {
     method: "POST",
     body: JSON.stringify({ ...data, confirmLiveWrite: true }),
@@ -510,8 +632,8 @@ export const api = {
     method: "DELETE",
     body: JSON.stringify({ confirmLiveWrite: true }),
   }),
-  updateMemberQuota: (id: string, quota: { maxTokens?: number; maxCost?: number }) =>
-    request(`/api/members/${encodeURIComponent(id)}/quota`, {
+  updateMemberQuota: (id: string, quota: { maxTokens?: number; maxCost?: number; plan?: string; allowedModels?: string[] }) =>
+    request("/api/members/" + encodeURIComponent(id) + "/quota", {
       method: "POST",
       body: JSON.stringify({ ...quota, confirmLiveWrite: true }),
     }),
@@ -547,6 +669,9 @@ export const api = {
         };
       }),
     };
+  },
+  getConsoleLogs: async (): Promise<{ ok: boolean; logs: string[] }> => {
+    return request<{ ok: boolean; logs: string[] }>("/api/console-logs");
   },
   getSettings: () => request<SettingsResponse>("/api/settings"),
   saveSettings: (config: any) => request("/api/settings", {

@@ -93,3 +93,66 @@
   stroke-dasharray: 8 6;
   animation: flowDash 0.75s linear infinite;
 }
+
+/* Traveling packet dots on the slim routing wire */
+@keyframes wirePacket {
+  0% {
+    left: 0;
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.6);
+  }
+  12% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    left: 100%;
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.wire-packet {
+  position: absolute;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  animation: wirePacket 1.4s linear infinite;
+  box-shadow: 0 0 6px currentColor;
+}
+
+/* Smooth enter animation for rack nodes appearing on traffic */
+@keyframes rackIn {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.rack-enter {
+  animation: rackIn 0.35s ease-out;
+}
+
+/* Material Symbols Outlined (Google Variable Icon Font ala 9Router) */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 20px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+}

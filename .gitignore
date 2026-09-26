@@ -9,3 +9,12 @@ backups/
 *.log
 dist/
 admin-panel/dist/
+
+# AI tooling / agent artifacts (not part of the app)
+.agents/
+.kilo/
+skills-lock.json
+AGENTS.md
+
+# Archives and stray bundles
+*.zip
