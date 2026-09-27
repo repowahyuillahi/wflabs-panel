@@ -317,7 +317,34 @@ export interface DbStatsResponse {
   };
 }
 
+export interface UpstreamStatus {
+  ok?: boolean;
+  baseUrl: string;
+  label: string;
+  configured: boolean;
+  keyPreview: string | null;
+  lastTestAt: number;
+  lastTestOk: boolean;
+  lastTestMs: number;
+  lastError: string;
+  modelCount: number;
+}
+
 export const api = {
+  // 0. Upstream provider connection (base URL + API key)
+  getUpstreamStatus: () => request<UpstreamStatus>("/api/upstream/status"),
+  configureUpstream: (baseUrl: string, apiKey: string, label?: string) =>
+    request<{ ok: boolean; message: string; test?: any; status?: UpstreamStatus }>("/api/upstream/configure", {
+      method: "POST",
+      body: JSON.stringify({ baseUrl, apiKey, label }),
+    }),
+  testUpstream: () =>
+    request<{ ok: boolean; message: string; test?: any; status?: UpstreamStatus }>("/api/upstream/test", {
+      method: "POST",
+    }),
+  disconnectUpstream: () =>
+    request<{ ok: boolean; message: string; status?: UpstreamStatus }>("/api/upstream/disconnect", { method: "POST" }),
+
   // 1. Live Instances Status & Ping
   getInstances: () => request<LiveInstanceResponse>("/api/instances"),
   getDbStats: () => request<DbStatsResponse>("/api/db/stats"),

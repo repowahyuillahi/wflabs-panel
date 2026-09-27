@@ -9,6 +9,7 @@ import { LiveInstanceResponse } from "@/lib/api";
 
 export type AdminRoute =
   | "dashboard"
+  | "connect"
   | "usage"
   | "accounts"
   | "providers"
@@ -50,6 +51,12 @@ export function AppSidebar({ currentRoute, onRouteChange, live }: AppSidebarProp
         { id: "dashboard", label: "Dashboard", icon: <MaterialIcon name="dashboard" size={17} /> },
         { id: "usage", label: "Usage & Analytics", icon: <MaterialIcon name="bar_chart" size={17} /> },
         { id: "console", label: "Console Log", icon: <MaterialIcon name="terminal" size={17} /> },
+      ],
+    },
+    {
+      group: "Gateway Connection",
+      items: [
+        { id: "connect", label: "Connect Upstream", icon: <MaterialIcon name="link" size={17} /> },
       ],
     },
     {

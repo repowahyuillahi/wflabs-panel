@@ -4,6 +4,7 @@ import { TopNav } from "@/components/layout/TopNav";
 import { useLiveStat } from "@/hooks/use-live-stat";
 import { DashboardView } from "@/views/admin/DashboardView";
 import { UsageView } from "@/views/admin/UsageView";
+import { ConnectView } from "@/views/admin/ConnectView";
 import { AccountsView } from "@/views/admin/AccountsView";
 import { ProvidersView } from "@/views/admin/ProvidersView";
 import { ProxiesView } from "@/views/admin/ProxiesView";
@@ -90,6 +91,8 @@ export function App() {
     switch (route) {
       case "dashboard":
         return <DashboardView />;
+      case "connect":
+        return <ConnectView />;
       case "usage":
         return <UsageView />;
       case "accounts":
@@ -124,6 +127,7 @@ export function App() {
   const getPageTitle = () => {
     switch (route) {
       case "dashboard": return "Live Usage & Analytics Spectrum";
+      case "connect": return "Connect Upstream Provider";
       case "usage": return "Usage & Analytics";
       case "accounts": return "Provider Key Management";
       case "providers": return "Upstream Provider Nodes";

@@ -13,6 +13,8 @@ const LIVE_URL = `http://127.0.0.1:${LIVE_PORT}`;
 const LIVE_DATA_DIR = path.join(process.env.APPDATA || "", "9router");
 const LIVE_DB_PATH = path.join(LIVE_DATA_DIR, "db", "data.sqlite");
 
+const upstream = require("./lib/upstream");
+
 const BACKUPS_DIR = path.join(__dirname, "backups");
 fs.mkdirSync(BACKUPS_DIR, { recursive: true });
 
@@ -114,6 +116,194 @@ function sendJson(res, status, data) {
     "Access-Control-Allow-Headers": "Content-Type, Authorization"
   });
   res.end(JSON.stringify(data));
+}
+
+/* ------------------------- usage aggregation helpers ------------------------ */
+
+/** Cutoff ISO timestamp for a 9Router-style period */
+function periodCutoff(period) {
+  const now = Date.now();
+  const spans = {
+    "24h": 24 * 3600e3,
+    "7d": 7 * 86400e3,
+    "30d": 30 * 86400e3,
+    "60d": 60 * 86400e3,
+  };
+  if (period === "today") {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.toISOString();
+  }
+  if (spans[period]) return new Date(now - spans[period]).toISOString();
+  return null; // "all"
+}
+
+/**
+ * Aggregate usageHistory into the same shape the upstream returns, so the
+ * Usage page keeps working when the provider is unreachable.
+ */
+function aggregateUsageFromDb(period) {
+  const db = getLiveDb(true);
+  try {
+    const cutoff = periodCutoff(period);
+    const where = cutoff ? "WHERE timestamp >= ?" : "";
+    const args = cutoff ? [cutoff] : [];
+
+    const totals = db.prepare(`
+      SELECT count(*) as requests,
+             COALESCE(sum(promptTokens),0) as promptTokens,
+             COALESCE(sum(completionTokens),0) as completionTokens,
+             COALESCE(sum(cost),0) as cost
+      FROM usageHistory ${where}
+    `).get(...args);
+
+    const rows = db.prepare(`
+      SELECT timestamp, provider, model, connectionId, apiKey, endpoint,
+             promptTokens, completionTokens, cost, status, tokens
+      FROM usageHistory ${where}
+      ORDER BY id DESC
+    `).all(...args);
+
+    const byModel = {};
+    const byProvider = {};
+    const byAccount = {};
+    const byApiKey = {};
+    const byEndpoint = {};
+
+    const bump = (map, key, r, cached) => {
+      if (!map[key]) {
+        map[key] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0 };
+      }
+      const e = map[key];
+      e.requests += 1;
+      e.promptTokens += r.promptTokens || 0;
+      e.completionTokens += r.completionTokens || 0;
+      e.cachedTokens += cached || 0;
+      e.cost += r.cost || 0;
+    };
+
+    for (const r of rows) {
+      const tok = safeJson(r.tokens, {});
+      const cached = tok.cached_tokens || tok.cache_read_input_tokens || 0;
+
+      bump(byProvider, r.provider || "unknown", r, cached);
+
+      const modelKey = `${r.model || "unknown"} (${r.provider || "unknown"})`;
+      bump(byModel, modelKey, r, cached);
+      byModel[modelKey].rawModel = r.model || "unknown";
+      byModel[modelKey].provider = r.provider || "unknown";
+
+      const acctKey = r.connectionId || "unknown";
+      if (!byAccount[acctKey]) byAccount[acctKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0 };
+      const ac = byAccount[acctKey];
+      ac.requests += 1;
+      ac.promptTokens += r.promptTokens || 0;
+      ac.completionTokens += r.completionTokens || 0;
+      ac.cost += r.cost || 0;
+      ac.connectionId = r.connectionId || null;
+      ac.rawModel = r.model || "unknown";
+      ac.provider = r.provider || "unknown";
+      ac.accountName = r.connectionId ? `Account ${String(r.connectionId).slice(0, 8)}` : "Unknown Account";
+
+      const keyMasked = r.apiKey ? `${String(r.apiKey).slice(0, 12)}***` : "unknown";
+      if (!byApiKey[keyMasked]) byApiKey[keyMasked] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0 };
+      const ak = byApiKey[keyMasked];
+      ak.requests += 1;
+      ak.promptTokens += r.promptTokens || 0;
+      ak.completionTokens += r.completionTokens || 0;
+      ak.cost += r.cost || 0;
+      ak.apiKeyMasked = keyMasked;
+      ak.keyName = keyMasked;
+
+      const epKey = r.endpoint || "/v1/chat/completions";
+      if (!byEndpoint[epKey]) byEndpoint[epKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0 };
+      const ek = byEndpoint[epKey];
+      ek.requests += 1;
+      ek.promptTokens += r.promptTokens || 0;
+      ek.completionTokens += r.completionTokens || 0;
+      ek.cost += r.cost || 0;
+      ek.endpoint = epKey;
+      ek.rawModel = r.model || "unknown";
+      ek.provider = r.provider || "unknown";
+    }
+
+    const lastUsedOf = (map) => {
+      for (const k of Object.keys(map)) {
+        const sample = rows.find((r) =>
+          k.includes(r.model || "___") || k === (r.provider || "unknown") || k === (r.endpoint || "/v1/chat/completions")
+        );
+        map[k].lastUsed = sample ? sample.timestamp : (rows[0] ? rows[0].timestamp : null);
+      }
+      return map;
+    };
+    lastUsedOf(byModel);
+    lastUsedOf(byAccount);
+    lastUsedOf(byApiKey);
+    lastUsedOf(byEndpoint);
+
+    const recentRequests = rows.slice(0, 50).map((r) => ({
+      timestamp: r.timestamp,
+      model: r.model,
+      provider: r.provider,
+      promptTokens: r.promptTokens || 0,
+      completionTokens: r.completionTokens || 0,
+      status: r.status === "ok" || r.status === "success" ? "ok" : r.status,
+    }));
+
+    return {
+      totalRequests: totals.requests || 0,
+      totalPromptTokens: totals.promptTokens || 0,
+      totalCompletionTokens: totals.completionTokens || 0,
+      totalCachedTokens: rows.reduce((a, r) => {
+        const t = safeJson(r.tokens, {});
+        return a + (t.cached_tokens || t.cache_read_input_tokens || 0);
+      }, 0),
+      totalCost: totals.cost || 0,
+      byProvider,
+      byModel,
+      byAccount,
+      byApiKey,
+      byEndpoint,
+      activeRequests: [],
+      recentRequests,
+      errorProvider: "",
+    };
+  } finally {
+    db.close();
+  }
+}
+
+/** Bucket usageHistory into chart-friendly { label, tokens, cost } points */
+function chartBucketsFromDb(period) {
+  const db = getLiveDb(true);
+  try {
+    const cutoff = periodCutoff(period);
+    const where = cutoff ? "WHERE timestamp >= ?" : "";
+    const args = cutoff ? [cutoff] : [];
+    const rows = db.prepare(`SELECT timestamp, promptTokens, completionTokens, cost FROM usageHistory ${where} ORDER BY timestamp ASC`).all(...args);
+
+    const useHourly = period === "today" || period === "24h";
+    const buckets = new Map();
+
+    for (const r of rows) {
+      const d = new Date(r.timestamp);
+      const label = useHourly
+        ? `${String(d.getHours()).padStart(2, "0")}:00`
+        : d.toISOString().slice(0, 10);
+      if (!buckets.has(label)) buckets.set(label, { label, tokens: 0, cost: 0 });
+      const b = buckets.get(label);
+      b.tokens += (r.promptTokens || 0) + (r.completionTokens || 0);
+      b.cost += r.cost || 0;
+    }
+
+    return Array.from(buckets.values()).map((b) => ({
+      label: b.label,
+      tokens: b.tokens,
+      cost: Number(b.cost.toFixed(6)),
+    }));
+  } finally {
+    db.close();
+  }
 }
 
 function sendError(res, status, message) {
@@ -1434,38 +1624,34 @@ const server = http.createServer(async (req, res) => {
     // file log, jadi sumber realtime per-request adalah API live-nya sendiri:
     // /api/usage/stats -> activeRequests (in-flight) + recentRequests + pending.
     if (pathname === "/api/live/usage" && req.method === "GET") {
-      // Teruskan period ala 9router (today/24h/7d/30d/60d); default = agregat live.
+      // Prefer the upstream's own aggregated stats (richest data, same numbers
+      // the provider dashboard shows). Falls back to local SQLite when the
+      // upstream is unreachable, so the Usage page never goes blank.
       const period = params.get("period") || "";
       const allowedPeriods = new Set(["today", "24h", "7d", "30d", "60d"]);
       const livePath = allowedPeriods.has(period) ? `/api/usage/stats?period=${period}` : "/api/usage/stats";
-      const liveReq = http.request(
-        {
-          hostname: "127.0.0.1",
-          port: LIVE_PORT,
-          path: livePath,
-          method: "GET",
-          timeout: 5000
-        },
-        (liveRes) => {
-          let raw = "";
-          liveRes.on("data", (c) => (raw += c));
-          liveRes.on("end", () => {
-            try {
-              const data = JSON.parse(raw);
-              sendJson(res, 200, { ok: true, period: period || "live", live: data });
-            } catch {
-              sendError(res, 502, "Live gateway returned non-JSON usage stats");
-            }
-          });
+
+      const base = upstream.base();
+      try {
+        const r = await fetch(`${base}${livePath}`, {
+          headers: upstream.authHeaders(),
+          signal: AbortSignal.timeout(10000),
+        });
+        if (r.ok) {
+          const data = await r.json();
+          return sendJson(res, 200, { ok: true, period: period || "live", source: "upstream", live: data });
         }
-      );
-      liveReq.on("error", (err) => sendError(res, 502, `Live gateway unreachable: ${err.message}`));
-      liveReq.on("timeout", () => {
-        liveReq.destroy();
-        sendError(res, 504, "Live gateway usage stats timeout");
-      });
-      liveReq.end();
-      return;
+      } catch {
+        // fall through to local aggregation
+      }
+
+      // Fallback: aggregate from the local usageHistory table
+      try {
+        const live = aggregateUsageFromDb(period || "today");
+        return sendJson(res, 200, { ok: true, period: period || "today", source: "local", live });
+      } catch (err) {
+        return sendError(res, 502, `Usage unavailable: ${err.message}`);
+      }
     }
 
     // 20c. LIVE CHART PASSTHROUGH (READ-ONLY): bucket tokens/cost per period.
@@ -1473,34 +1659,26 @@ const server = http.createServer(async (req, res) => {
       const period = params.get("period") || "7d";
       const allowedPeriods = new Set(["today", "24h", "7d", "30d", "60d"]);
       const safePeriod = allowedPeriods.has(period) ? period : "7d";
-      const liveReq = http.request(
-        {
-          hostname: "127.0.0.1",
-          port: LIVE_PORT,
-          path: `/api/usage/chart?period=${safePeriod}`,
-          method: "GET",
-          timeout: 5000
-        },
-        (liveRes) => {
-          let raw = "";
-          liveRes.on("data", (c) => (raw += c));
-          liveRes.on("end", () => {
-            try {
-              const data = JSON.parse(raw);
-              sendJson(res, 200, { ok: true, period: safePeriod, buckets: data });
-            } catch {
-              sendError(res, 502, "Live gateway returned non-JSON chart");
-            }
-          });
+
+      try {
+        const r = await fetch(`${upstream.base()}/api/usage/chart?period=${safePeriod}`, {
+          headers: upstream.authHeaders(),
+          signal: AbortSignal.timeout(10000),
+        });
+        if (r.ok) {
+          const data = await r.json();
+          return sendJson(res, 200, { ok: true, period: safePeriod, source: "upstream", buckets: data });
         }
-      );
-      liveReq.on("error", (err) => sendError(res, 502, `Live gateway unreachable: ${err.message}`));
-      liveReq.on("timeout", () => {
-        liveReq.destroy();
-        sendError(res, 504, "Live gateway chart timeout");
-      });
-      liveReq.end();
-      return;
+      } catch {
+        // fall through
+      }
+
+      try {
+        const buckets = chartBucketsFromDb(safePeriod);
+        return sendJson(res, 200, { ok: true, period: safePeriod, source: "local", buckets });
+      } catch (err) {
+        return sendError(res, 502, `Chart unavailable: ${err.message}`);
+      }
     }
 
     // 20d. SHORT-RANGE SUMMARY (READ-ONLY SQLITE): 1h & 12h tidak didukung
@@ -1721,6 +1899,23 @@ const server = http.createServer(async (req, res) => {
 
     // 20g. USAGE PROVIDER LIST (FOR DETAILS FILTER DROPDOWN)
     if (pathname === "/api/usage/providers" && req.method === "GET") {
+      // Ask the upstream first so names match its dashboard, then fall back to
+      // deriving the list from our own usageHistory.
+      try {
+        const r = await fetch(`${upstream.base()}/api/usage/providers`, {
+          headers: upstream.authHeaders(),
+          signal: AbortSignal.timeout(8000),
+        });
+        if (r.ok) {
+          const j = await r.json();
+          if (Array.isArray(j.providers)) {
+            return sendJson(res, 200, { ok: true, providers: j.providers, source: "upstream" });
+          }
+        }
+      } catch {
+        // fall through
+      }
+
       const db = getLiveDb(true);
       try {
         const rows = db.prepare(`
@@ -1748,10 +1943,66 @@ const server = http.createServer(async (req, res) => {
           count: r.c
         }));
 
-        return sendJson(res, 200, { ok: true, providers });
+        return sendJson(res, 200, { ok: true, providers, source: "local" });
       } finally {
         db.close();
       }
+    }
+
+    // 20h. UPSTREAM PROVIDER CONNECTION (base URL + API key)
+    // The panel routers client requests to one upstream OpenAI-compatible
+    // endpoint. The upstream credential is stored encrypted and never exposed.
+    if (pathname === "/api/upstream/status" && req.method === "GET") {
+      return sendJson(res, 200, { ok: true, ...upstream.getStatus() });
+    }
+
+    if (pathname === "/api/upstream/configure" && req.method === "POST") {
+      const body = await parseBody(req);
+      const apiKey = (body.apiKey || "").trim();
+      const baseUrl = (body.baseUrl || "").trim();
+
+      if (!apiKey && !upstream.configured()) {
+        return sendError(res, 400, "Upstream API key is required");
+      }
+
+      upstream.configure({
+        baseUrl: baseUrl || undefined,
+        apiKey: apiKey || undefined,
+        label: body.label,
+      });
+
+      const result = await upstream.test();
+
+      return sendJson(res, 200, {
+        ok: result.ok,
+        message: result.ok
+          ? `Connected to upstream (${result.modelCount} models, ${result.latency}ms)`
+          : `Saved, but upstream test failed: ${result.error}`,
+        test: result,
+        status: upstream.getStatus(),
+      });
+    }
+
+    if (pathname === "/api/upstream/test" && req.method === "POST") {
+      const result = await upstream.test();
+      return sendJson(res, 200, {
+        ok: result.ok,
+        message: result.ok
+          ? `Upstream OK — ${result.modelCount} models available (${result.latency}ms)`
+          : `Upstream test failed: ${result.error}`,
+        test: result,
+        status: upstream.getStatus(),
+      });
+    }
+
+    if (pathname === "/api/upstream/disconnect" && req.method === "POST") {
+      upstream.clear();
+      return sendJson(res, 200, { ok: true, message: "Upstream API key cleared", status: upstream.getStatus() });
+    }
+
+    // Legacy alias so older clients keep working
+    if (pathname === "/api/gateway/status" && req.method === "GET") {
+      return sendJson(res, 200, { ok: true, ...upstream.getStatus() });
     }
 
     // 21. REALTIME USAGE SSE STREAM (LIVE 20128)
@@ -1803,19 +2054,69 @@ const server = http.createServer(async (req, res) => {
     }
 
     // 22. OPENAI-COMPATIBLE GATEWAY PROXY WITH QUOTA & MODEL FILTER
+    // 22. MODEL CATALOG (filtered to what THIS key may use)
+    // Clients see only their own permitted models — never the full upstream list.
     if (pathname === "/v1/models" && req.method === "GET") {
-      const proxyReq = http.request({
-        hostname: "127.0.0.1",
-        port: LIVE_PORT,
-        path: "/v1/models",
-        method: "GET",
-        headers: req.headers
-      }, (proxyRes) => {
-        res.writeHead(proxyRes.statusCode, proxyRes.headers);
-        proxyRes.pipe(res);
-      });
-      proxyReq.on("error", (err) => sendError(res, 502, `Live Gateway error: ${err.message}`));
-      return;
+      const authHeader = req.headers["authorization"] || "";
+      const apiKey = authHeader.replace(/^Bearer\s+/i, "").trim();
+
+      if (!apiKey) {
+        return sendError(res, 401, "API Key required in Authorization header");
+      }
+      if (!upstream.configured()) {
+        return sendError(res, 503, "Upstream provider is not configured");
+      }
+
+      const db = getLiveDb(true);
+      let memberKeyRow = null;
+      let allowedList = [];
+      try {
+        memberKeyRow = db.prepare("SELECT * FROM apiKeys WHERE key = ?").get(apiKey);
+        if (!memberKeyRow || memberKeyRow.isActive !== 1) {
+          return sendError(res, 403, "Invalid or revoked API key");
+        }
+
+        const quotaRow = db.prepare("SELECT value FROM kv WHERE scope = 'memberQuotas' AND key = 'limits'").get();
+        const quotaMap = quotaRow ? safeJson(quotaRow.value, {}) : {};
+        const mq = quotaMap[memberKeyRow.id] || {};
+        allowedList = Array.isArray(mq.allowedModels) ? mq.allowedModels : [];
+
+        const disabledRows = db.prepare("SELECT value FROM kv WHERE scope = 'disabledModels'").all();
+        var disabledSet = new Set();
+        for (const d of disabledRows) {
+          for (const id of safeJson(d.value, [])) disabledSet.add(id);
+        }
+      } finally {
+        db.close();
+      }
+
+      try {
+        const models = await upstream.listModels();
+
+        const visible = models
+          .filter((m) => !disabledSet.has(m.id))
+          .filter((m) => allowedList.length === 0 || allowedList.includes(m.id))
+          .map((m) => ({
+            id: m.id,
+            object: "model",
+            owned_by: m.owned_by || "wflabs",
+            context_length: m.context_length || null,
+            max_completion_tokens: m.max_completion_tokens || null,
+            capabilities: m.capabilities || undefined,
+          }));
+
+        return sendJson(res, 200, {
+          object: "list",
+          data: visible,
+          meta: {
+            total: models.length,
+            permitted: visible.length,
+            restricted: allowedList.length > 0,
+          },
+        });
+      } catch (err) {
+        return sendError(res, 502, `Failed to load upstream models: ${err.message}`);
+      }
     }
 
     if (pathname === "/v1/chat/completions" && req.method === "POST") {
@@ -1891,40 +2192,183 @@ const server = http.createServer(async (req, res) => {
 
         if (allowedList.length > 0 && !allowedList.includes(reqModel)) {
           db.close();
-          return sendError(res, 403, `Model '${reqModel}' is not permitted for your API key. Allowed: ${allowedList.slice(0, 5).join(", ")}${allowedList.length > 5 ? ` (+${allowedList.length - 5} more)` : ""}`);
+          return sendJson(res, 403, {
+            ok: false,
+            error: `Model '${reqModel}' is not permitted for your API key. Please switch to one of your allowed models.`,
+            type: "model_not_permitted",
+            requested_model: reqModel,
+            allowed_models: allowedList,
+            suggestion:
+              allowedList.length === 1
+                ? `Only '${allowedList[0]}' is available on this key.`
+                : `Choose one of the ${allowedList.length} models allowed on this key.`,
+            list_endpoint: "/v1/models",
+          });
         }
       }
 
       db.close();
 
-      const fwdPayload = JSON.stringify(body);
-      const fwdHeaders = {
-        ...req.headers,
-        "host": `127.0.0.1:${LIVE_PORT}`,
-        "content-length": Buffer.byteLength(fwdPayload)
-      };
+      // Forward to the configured upstream using the UPSTREAM key, never the
+      // client's key. The upstream credential stays on this machine.
+      if (!upstream.configured()) {
+        return sendError(res, 503, "Upstream provider is not configured. Set the upstream base URL and API key in Connect Upstream.");
+      }
 
-      const proxyReq = http.request({
-        hostname: "127.0.0.1",
-        port: LIVE_PORT,
-        path: "/v1/chat/completions",
-        method: "POST",
-        headers: fwdHeaders,
-        timeout: 60000
-      }, (proxyRes) => {
-        res.writeHead(proxyRes.statusCode, proxyRes.headers);
-        proxyRes.pipe(res);
-      });
+      try {
+        const upstreamRes = await upstream.chatCompletion(body, { stream: !!body.stream });
 
-      proxyReq.on("error", (err) => sendError(res, 502, `9Router gateway forwarding error: ${err.message}`));
-      proxyReq.on("timeout", () => {
-        proxyReq.destroy();
-        sendError(res, 504, "9Router gateway timeout");
-      });
+        // Pass through status and content type; drop hop-by-hop headers
+        const passthrough = {};
+        for (const [k, v] of upstreamRes.headers.entries()) {
+          const lk = k.toLowerCase();
+          if (lk === "content-length" || lk === "content-encoding" || lk === "transfer-encoding" || lk === "connection") continue;
+          passthrough[k] = v;
+        }
+        res.writeHead(upstreamRes.status, passthrough);
 
-      proxyReq.write(fwdPayload);
-      proxyReq.end();
-      return;
+        if (!upstreamRes.body) {
+          return res.end();
+        }
+        // Stream the body straight through (works for JSON and SSE alike)
+        const reader = upstreamRes.body.getReader();
+        const pump = async () => {
+          try {
+            for (;;) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              res.write(Buffer.from(value));
+            }
+          } catch {
+            // client disconnected or upstream aborted
+          } finally {
+            res.end();
+          }
+        };
+        pump();
+        return;
+      } catch (err) {
+        return sendError(res, 502, `Upstream forwarding error: ${err.message}`);
+      }
+    }
+
+    // 22b. ANTHROPIC MESSAGES API (so Claude Code / Anthropic SDK clients work)
+    // Applies the same key validation, quota, and model whitelist as /v1/chat/completions.
+    if (pathname === "/v1/messages" && req.method === "POST") {
+      const db = getLiveDb(false);
+      let body;
+      try {
+        body = await parseBody(req);
+      } catch {
+        return sendError(res, 400, "Invalid JSON payload");
+      }
+
+      // Anthropic clients send x-api-key instead of Authorization
+      const authHeader = req.headers["authorization"] || "";
+      let apiKey = authHeader.replace(/^Bearer\s+/i, "").trim();
+      if (!apiKey) apiKey = (req.headers["x-api-key"] || "").trim();
+
+      if (!apiKey) {
+        db.close();
+        return sendError(res, 401, "API Key required (Authorization: Bearer or x-api-key)");
+      }
+
+      const memberKeyRow = db.prepare("SELECT * FROM apiKeys WHERE key = ?").get(apiKey);
+      if (!memberKeyRow || memberKeyRow.isActive !== 1) {
+        db.close();
+        return sendError(res, 403, "Invalid or revoked API key");
+      }
+
+      const quotaRow = db.prepare("SELECT value FROM kv WHERE scope = 'memberQuotas' AND key = 'limits'").get();
+      const quotaMap = quotaRow ? safeJson(quotaRow.value, {}) : {};
+      const q = quotaMap[memberKeyRow.id] || { maxTokens: 10000000, maxCost: 50 };
+
+      const usage = db.prepare(`
+        SELECT sum(promptTokens + completionTokens) as totalTokens, sum(cost) as totalCost
+        FROM usageHistory WHERE apiKey = ?
+      `).get(memberKeyRow.key) || {};
+      const usedTokens = usage.totalTokens || 0;
+      const usedCost = usage.totalCost || 0;
+
+      if (q.maxTokens && usedTokens >= q.maxTokens) {
+        db.close();
+        return sendError(res, 429, `Monthly token quota exceeded (${usedTokens.toLocaleString()} / ${q.maxTokens.toLocaleString()} tokens used)`);
+      }
+      if (q.maxCost && usedCost >= q.maxCost) {
+        db.close();
+        return sendError(res, 402, `Monthly spending cap reached ($${usedCost.toFixed(2)} / $${q.maxCost.toFixed(2)} USD)`);
+      }
+
+      const reqModel = body.model;
+
+      for (const d of db.prepare("SELECT value FROM kv WHERE scope = 'disabledModels'").all()) {
+        if (safeJson(d.value, []).includes(reqModel)) {
+          db.close();
+          return sendError(res, 403, `Model '${reqModel}' has been disabled by administrator`);
+        }
+      }
+
+      const mq = quotaMap[memberKeyRow.id] || {};
+      const allowedList = Array.isArray(mq.allowedModels) ? mq.allowedModels : [];
+      if (allowedList.length > 0 && !allowedList.includes(reqModel)) {
+        db.close();
+        return sendJson(res, 403, {
+          ok: false,
+          error: `Model '${reqModel}' is not permitted for your API key. Please switch to one of your allowed models.`,
+          type: "model_not_permitted",
+          requested_model: reqModel,
+          allowed_models: allowedList,
+          suggestion: `Choose one of the ${allowedList.length} models allowed on this key.`,
+          list_endpoint: "/v1/models",
+        });
+      }
+
+      db.close();
+
+      if (!upstream.configured()) {
+        return sendError(res, 503, "Upstream provider is not configured");
+      }
+
+      try {
+        const upstreamRes = await fetch(`${upstream.base()}/v1/messages`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "anthropic-version": req.headers["anthropic-version"] || "2023-06-01",
+            ...(upstream.key() ? { "x-api-key": upstream.key() } : {}),
+            ...(upstream.key() ? { Authorization: `Bearer ${upstream.key()}` } : {}),
+          },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(300_000),
+        });
+
+        const passthrough = {};
+        for (const [k, v] of upstreamRes.headers.entries()) {
+          const lk = k.toLowerCase();
+          if (["content-length", "content-encoding", "transfer-encoding", "connection"].includes(lk)) continue;
+          passthrough[k] = v;
+        }
+        res.writeHead(upstreamRes.status, passthrough);
+
+        if (!upstreamRes.body) return res.end();
+        const reader = upstreamRes.body.getReader();
+        (async () => {
+          try {
+            for (;;) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              res.write(Buffer.from(value));
+            }
+          } catch {
+            // aborted
+          } finally {
+            res.end();
+          }
+        })();
+        return;
+      } catch (err) {
+        return sendError(res, 502, `Upstream forwarding error: ${err.message}`);
+      }
     }
 
     // 23. PROMPT QUICK TESTER (TARGETING LIVE 20128)

@@ -1,6 +1,7 @@
 node_modules/
 dev-9router-data/
 backups/
+data/
 *.sqlite
 *.sqlite-*
 .env
